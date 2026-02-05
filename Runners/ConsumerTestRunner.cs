@@ -36,12 +36,17 @@ public class ConsumerTestRunner
     /// Entry point for a single consumer benchmark run.
     /// Routes to the Avro or JSON code path based on the test definition's format.
     /// </summary>
-    public async Task<TestResult> RunAsync(TestDefinition test, int runNumber)
+    /// <summary>
+    /// The optional onProgress callback is invoked approximately every second with
+    /// the current message count and elapsed time, enabling live progress display.
+    /// </summary>
+    public async Task<TestResult> RunAsync(TestDefinition test, int runNumber,
+        Action<int, TimeSpan>? onProgress = null)
     {
         return test.Format switch
         {
-            SerializationFormat.Avro => await RunAvroAsync(test, runNumber),
-            SerializationFormat.Json => await RunJsonAsync(test, runNumber),
+            SerializationFormat.Avro => await RunAvroAsync(test, runNumber, onProgress),
+            SerializationFormat.Json => await RunJsonAsync(test, runNumber, onProgress),
             _ => throw new ArgumentException($"Unknown format: {test.Format}")
         };
     }
@@ -58,7 +63,8 @@ public class ConsumerTestRunner
     /// - Each run gets a unique consumer group ID (with a GUID suffix) to ensure
     ///   it reads the full topic from offset 0.
     /// </summary>
-    private Task<TestResult> RunAvroAsync(TestDefinition test, int runNumber)
+    private Task<TestResult> RunAvroAsync(TestDefinition test, int runNumber,
+        Action<int, TimeSpan>? onProgress = null)
     {
         var consumerConfig = BuildConsumerConfig(test.Id, runNumber);
         var schemaRegistryConfig = BuildSchemaRegistryConfig();
@@ -76,19 +82,20 @@ public class ConsumerTestRunner
             .SetErrorHandler((_, e) => Console.Error.WriteLine($"Consumer error: {e.Reason}"))
             .Build();
 
-        return Task.FromResult(ConsumeMessages(consumer, test, runNumber, () => byteCounter.TotalBytes));
+        return Task.FromResult(ConsumeMessages(consumer, test, runNumber, () => byteCounter.TotalBytes, onProgress));
     }
 
     /// <summary>
     /// Consumes JSON-serialized messages from the test topic.
     /// Routes to the generic RunJsonTypedAsync&lt;T&gt; with the appropriate POCO type.
     /// </summary>
-    private Task<TestResult> RunJsonAsync(TestDefinition test, int runNumber)
+    private Task<TestResult> RunJsonAsync(TestDefinition test, int runNumber,
+        Action<int, TimeSpan>? onProgress = null)
     {
         if (test.Size == PayloadSize.Small)
-            return RunJsonTypedAsync<FreightDboTblLoadsSmall>(test, runNumber);
+            return RunJsonTypedAsync<FreightDboTblLoadsSmall>(test, runNumber, onProgress);
         else
-            return RunJsonTypedAsync<FreightDboTblLoads>(test, runNumber);
+            return RunJsonTypedAsync<FreightDboTblLoads>(test, runNumber, onProgress);
     }
 
     /// <summary>
@@ -100,7 +107,8 @@ public class ConsumerTestRunner
     /// - Keys use the default Deserializers.Int32 (matching the producer's Serializers.Int32).
     /// - The byte counter wraps JsonDeserializer to track raw bytes before JSON parsing.
     /// </summary>
-    private Task<TestResult> RunJsonTypedAsync<T>(TestDefinition test, int runNumber) where T : class
+    private Task<TestResult> RunJsonTypedAsync<T>(TestDefinition test, int runNumber,
+        Action<int, TimeSpan>? onProgress = null) where T : class
     {
         var consumerConfig = BuildConsumerConfig(test.Id, runNumber);
         var schemaRegistryConfig = BuildSchemaRegistryConfig();
@@ -115,7 +123,7 @@ public class ConsumerTestRunner
             .SetErrorHandler((_, e) => Console.Error.WriteLine($"Consumer error: {e.Reason}"))
             .Build();
 
-        return Task.FromResult(ConsumeMessages(consumer, test, runNumber, () => byteCounter.TotalBytes));
+        return Task.FromResult(ConsumeMessages(consumer, test, runNumber, () => byteCounter.TotalBytes, onProgress));
     }
 
     /// <summary>
@@ -143,7 +151,8 @@ public class ConsumerTestRunner
         IConsumer<int, TValue> consumer,
         TestDefinition test,
         int runNumber,
-        Func<long> getBytesConsumed)
+        Func<long> getBytesConsumed,
+        Action<int, TimeSpan>? onProgress = null)
     {
         consumer.Subscribe(test.Topic);
 
@@ -152,6 +161,7 @@ public class ConsumerTestRunner
         var errors = 0;
         var timeout = TimeSpan.FromSeconds(5);
         var isDurationMode = test.Duration.HasValue;
+        var lastProgressReport = TimeSpan.Zero;
 
         var sw = Stopwatch.StartNew();
 
@@ -170,7 +180,12 @@ public class ConsumerTestRunner
                         Console.WriteLine($"  [WARNING] Timeout waiting for messages at {messagesConsumed}/{test.MessageCount}");
                         break;
                     }
-                    // In duration mode, keep trying until time expires
+                    // In duration mode, report progress even on timeout (time is still advancing)
+                    if (onProgress != null && sw.Elapsed - lastProgressReport >= TimeSpan.FromSeconds(1))
+                    {
+                        onProgress(messagesConsumed, sw.Elapsed);
+                        lastProgressReport = sw.Elapsed;
+                    }
                     continue;
                 }
 
@@ -182,6 +197,13 @@ public class ConsumerTestRunner
                 }
 
                 messagesConsumed++;
+
+                // Report progress approximately every second for live UI updates
+                if (onProgress != null && sw.Elapsed - lastProgressReport >= TimeSpan.FromSeconds(1))
+                {
+                    onProgress(messagesConsumed, sw.Elapsed);
+                    lastProgressReport = sw.Elapsed;
+                }
             }
             catch (ConsumeException ex)
             {

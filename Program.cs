@@ -129,35 +129,85 @@ var producerRunner = new ProducerTestRunner(kafkaSettings, srSettings, smallSche
 var consumerRunner = new ConsumerTestRunner(kafkaSettings, srSettings);
 
 // Iterate through each test, executing the configured number of runs.
-// Each run displays a Spectre.Console spinner while in progress, then
-// prints the per-run metrics on completion.
+// Duration mode shows a progress bar with countdown; count mode shows a spinner.
 foreach (var test in testList)
 {
     AnsiConsole.Write(new Rule($"[yellow]{test.Id}[/] {test.Name}").RuleStyle("grey").LeftJustified());
 
     for (var run = 1; run <= test.Runs; run++)
     {
-        await AnsiConsole.Status()
-            .Spinner(Spinner.Known.Dots)
-            .StartAsync($"Run {run}/{test.Runs}...", async ctx =>
-            {
-                // Dispatch to the appropriate runner based on test type
-                TestResult result;
-                if (test.Type == TestType.Producer)
-                    result = await producerRunner.RunAsync(test, run);
-                else
-                    result = await consumerRunner.RunAsync(test, run);
+        TestResult result;
 
-                suite.AddResult(result);
+        if (test.Duration.HasValue)
+        {
+            // ── Duration mode: show a progress bar with elapsed/remaining time ──
+            var totalSeconds = test.Duration.Value.TotalSeconds;
+            var durationDisplay = test.Duration.Value.ToString(@"mm\:ss");
+            TestResult? progressResult = null;
 
-                // Print per-run summary: msgs/sec, MB/sec, elapsed time, message count, error count
-                AnsiConsole.MarkupLine(
-                    $"  Run {run}: [green]{result.MessagesPerSecond:N0} msgs/sec[/] | " +
-                    $"[cyan]{result.MegabytesPerSecond:F2} MB/sec[/] | " +
-                    $"{result.Elapsed:mm\\:ss\\.fff} | " +
-                    $"[grey]{result.MessageCount:N0} msgs[/] | " +
-                    (result.DeliveryErrors > 0 ? $"[red]{result.DeliveryErrors} errors[/]" : "[grey]0 errors[/]"));
-            });
+            await AnsiConsole.Progress()
+                .AutoClear(true)
+                .HideCompleted(false)
+                .Columns(
+                    new TaskDescriptionColumn(),
+                    new ProgressBarColumn(),
+                    new PercentageColumn(),
+                    new RemainingTimeColumn(),
+                    new SpinnerColumn())
+                .StartAsync(async ctx =>
+                {
+                    var task = ctx.AddTask($"Run {run}/{test.Runs}", maxValue: totalSeconds);
+
+                    Action<int, TimeSpan> onProgress = (msgs, elapsed) =>
+                    {
+                        task.Value = Math.Min(elapsed.TotalSeconds, totalSeconds);
+                        var remaining = test.Duration.Value - elapsed;
+                        if (remaining < TimeSpan.Zero) remaining = TimeSpan.Zero;
+                        task.Description =
+                            $"Run {run}/{test.Runs} | {msgs:N0} msgs | " +
+                            $"{elapsed:mm\\:ss} / {durationDisplay} | " +
+                            $"{remaining:mm\\:ss} remaining";
+                    };
+
+                    if (test.Type == TestType.Producer)
+                        progressResult = await producerRunner.RunAsync(test, run, onProgress);
+                    else
+                        progressResult = await consumerRunner.RunAsync(test, run, onProgress);
+
+                    // Ensure the bar reaches 100% on completion
+                    task.Value = totalSeconds;
+                    task.Description = $"Run {run}/{test.Runs} | {progressResult.MessageCount:N0} msgs | Complete";
+                });
+
+            result = progressResult!;
+        }
+        else
+        {
+            // ── Count mode: show a simple spinner ──
+            TestResult? spinnerResult = null;
+
+            await AnsiConsole.Status()
+                .Spinner(Spinner.Known.Dots)
+                .StartAsync($"Run {run}/{test.Runs}...", async ctx =>
+                {
+                    if (test.Type == TestType.Producer)
+                        spinnerResult = await producerRunner.RunAsync(test, run);
+                    else
+                        spinnerResult = await consumerRunner.RunAsync(test, run);
+                });
+
+            result = spinnerResult!;
+        }
+
+        suite.AddResult(result);
+
+        // Print per-run summary: msgs/sec, MB/sec, elapsed time, message count, error count
+        AnsiConsole.MarkupLine(
+            $"  Run {run}: [green]{result.MessagesPerSecond:N0} msgs/sec[/] | " +
+            $"[cyan]{result.MegabytesPerSecond:F2} MB/sec[/] | " +
+            $"{result.Elapsed:mm\\:ss\\.fff} | " +
+            $"[grey]{result.MessageCount:N0} msgs[/] | " +
+            (result.DeliveryErrors > 0 ? $"[red]{result.DeliveryErrors} errors[/]" : "[grey]0 errors[/]"));
     }
 
     AnsiConsole.WriteLine();

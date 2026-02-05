@@ -45,13 +45,16 @@ public class ProducerTestRunner
     /// <summary>
     /// Entry point for a single producer benchmark run.
     /// Routes to the Avro or JSON code path based on the test definition's format.
+    /// The optional onProgress callback is invoked approximately every second with
+    /// the current message count and elapsed time, enabling live progress display.
     /// </summary>
-    public async Task<TestResult> RunAsync(TestDefinition test, int runNumber)
+    public async Task<TestResult> RunAsync(TestDefinition test, int runNumber,
+        Action<int, TimeSpan>? onProgress = null)
     {
         return test.Format switch
         {
-            SerializationFormat.Avro => await RunAvroAsync(test, runNumber),
-            SerializationFormat.Json => await RunJsonAsync(test, runNumber),
+            SerializationFormat.Avro => await RunAvroAsync(test, runNumber, onProgress),
+            SerializationFormat.Json => await RunJsonAsync(test, runNumber, onProgress),
             _ => throw new ArgumentException($"Unknown format: {test.Format}")
         };
     }
@@ -74,7 +77,8 @@ public class ProducerTestRunner
     ///   forcing the serializer to serialize fresh data every time.
     /// - Supports both count-based (fixed N messages) and duration-based (run for N minutes) modes.
     /// </summary>
-    private Task<TestResult> RunAvroAsync(TestDefinition test, int runNumber)
+    private Task<TestResult> RunAvroAsync(TestDefinition test, int runNumber,
+        Action<int, TimeSpan>? onProgress = null)
     {
         // Select the schema and data factory based on payload size (small=27 fields, large=106 fields)
         var schema = test.Size == PayloadSize.Small ? _smallSchema : _largeSchema;
@@ -112,6 +116,7 @@ public class ProducerTestRunner
         using var monitor = new ResourceMonitor();
         var errors = 0;
         var messageCount = 0;
+        var lastProgressReport = TimeSpan.Zero;
 
         var sw = Stopwatch.StartNew();
 
@@ -140,6 +145,13 @@ public class ProducerTestRunner
             // are transmitted to the broker.
             if (messageCount % 50_000 == 0)
                 producer.Flush(TimeSpan.FromSeconds(30));
+
+            // Report progress approximately every second for live UI updates
+            if (onProgress != null && sw.Elapsed - lastProgressReport >= TimeSpan.FromSeconds(1))
+            {
+                onProgress(messageCount, sw.Elapsed);
+                lastProgressReport = sw.Elapsed;
+            }
         }
 
         // Final flush: wait for all in-flight messages to be acknowledged before
@@ -170,7 +182,8 @@ public class ProducerTestRunner
     /// Routes to the generic RunJsonTypedAsync&lt;T&gt; with the appropriate POCO type
     /// based on payload size (FreightDboTblLoadsSmall or FreightDboTblLoads).
     /// </summary>
-    private Task<TestResult> RunJsonAsync(TestDefinition test, int runNumber)
+    private Task<TestResult> RunJsonAsync(TestDefinition test, int runNumber,
+        Action<int, TimeSpan>? onProgress = null)
     {
         var producerConfig = BuildProducerConfig();
         var schemaRegistryConfig = BuildSchemaRegistryConfig();
@@ -180,11 +193,11 @@ public class ProducerTestRunner
         if (test.Size == PayloadSize.Small)
             return RunJsonTypedAsync<FreightDboTblLoadsSmall>(
                 test, runNumber, schemaRegistry, producerConfig,
-                new JsonSmallDataFactory());
+                new JsonSmallDataFactory(), onProgress);
         else
             return RunJsonTypedAsync<FreightDboTblLoads>(
                 test, runNumber, schemaRegistry, producerConfig,
-                new JsonLargeDataFactory());
+                new JsonLargeDataFactory(), onProgress);
     }
 
     /// <summary>
@@ -205,7 +218,8 @@ public class ProducerTestRunner
         TestDefinition test, int runNumber,
         ISchemaRegistryClient schemaRegistry,
         ProducerConfig producerConfig,
-        ITestDataFactory<T> factory) where T : class
+        ITestDataFactory<T> factory,
+        Action<int, TimeSpan>? onProgress = null) where T : class
     {
         var record = factory.CreateRecord();
 
@@ -225,6 +239,7 @@ public class ProducerTestRunner
         using var monitor = new ResourceMonitor();
         var errors = 0;
         var messageCount = 0;
+        var lastProgressReport = TimeSpan.Zero;
 
         var sw = Stopwatch.StartNew();
 
@@ -245,6 +260,13 @@ public class ProducerTestRunner
 
             if (messageCount % 50_000 == 0)
                 producer.Flush(TimeSpan.FromSeconds(30));
+
+            // Report progress approximately every second for live UI updates
+            if (onProgress != null && sw.Elapsed - lastProgressReport >= TimeSpan.FromSeconds(1))
+            {
+                onProgress(messageCount, sw.Elapsed);
+                lastProgressReport = sw.Elapsed;
+            }
         }
 
         producer.Flush(TimeSpan.FromSeconds(60));
