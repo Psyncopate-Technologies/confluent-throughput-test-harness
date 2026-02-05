@@ -7,9 +7,10 @@ public class KafkaSettings
     public string SaslMechanism { get; set; } = "Plain";
     public string SaslUsername { get; set; } = string.Empty;
     public string SaslPassword { get; set; } = string.Empty;
-    public string Acks { get; set; } = "All";
-    public int LingerMs { get; set; } = 5;
+    public string Acks { get; set; } = "Leader";
+    public int LingerMs { get; set; } = 100;
     public int BatchSize { get; set; } = 1000000;
+    public string CompressionType { get; set; } = "Lz4";
 }
 
 public class SchemaRegistrySettings

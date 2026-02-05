@@ -197,7 +197,7 @@ public class ProducerTestRunner
         Acks = Enum.Parse<Acks>(_kafkaSettings.Acks, true),
         LingerMs = _kafkaSettings.LingerMs,
         BatchSize = _kafkaSettings.BatchSize,
-        CompressionType = CompressionType.None,
+        CompressionType = Enum.Parse<CompressionType>(_kafkaSettings.CompressionType, true),
         EnableIdempotence = false
     };
 
