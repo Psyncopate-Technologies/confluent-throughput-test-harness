@@ -141,9 +141,11 @@ foreach (var test in testList)
         if (test.Duration.HasValue)
         {
             // ── Duration mode: show a spinner with live countdown in the status text ──
+            // Also collect time-series throughput samples for HTML chart reporting.
             var totalSeconds = test.Duration.Value.TotalSeconds;
             var durationDisplay = test.Duration.Value.ToString(@"mm\:ss");
             TestResult? progressResult = null;
+            var samples = new List<ThroughputSample>();
 
             await AnsiConsole.Status()
                 .Spinner(Spinner.Known.Dots)
@@ -153,6 +155,13 @@ foreach (var test in testList)
                 {
                     Action<int, TimeSpan> onProgress = (msgs, elapsed) =>
                     {
+                        // Collect throughput sample for time-series charts
+                        samples.Add(new ThroughputSample
+                        {
+                            ElapsedSeconds = elapsed.TotalSeconds,
+                            CumulativeMessages = msgs
+                        });
+
                         var remaining = test.Duration!.Value - elapsed;
                         if (remaining < TimeSpan.Zero) remaining = TimeSpan.Zero;
                         var pct = (int)(elapsed.TotalSeconds / totalSeconds * 100);
@@ -171,6 +180,7 @@ foreach (var test in testList)
                 });
 
             result = progressResult!;
+            result.Samples = samples;
         }
         else
         {
@@ -211,9 +221,17 @@ suite.CompletedAt = DateTime.UtcNow;
 // then export all results (including per-test averages) to a timestamped CSV.
 ConsoleReporter.PrintResults(suite);
 
+var timestamp = DateTime.UtcNow.ToString("yyyyMMdd-HHmmss");
 var csvPath = Path.Combine(AppContext.BaseDirectory, "results",
-    $"throughput-results-{DateTime.UtcNow:yyyyMMdd-HHmmss}.csv");
+    $"throughput-results-{timestamp}.csv");
 await CsvReporter.ExportAsync(suite, csvPath);
+
+// Generate interactive HTML chart report (especially useful for duration-mode runs
+// where time-series throughput data is collected).
+var mode = testSettings.DurationMinutes.HasValue ? "Duration" : "Count";
+var htmlPath = Path.Combine(AppContext.BaseDirectory, "results",
+    $"throughput-report-{timestamp}.html");
+await HtmlChartReporter.ExportAsync(suite, htmlPath, mode);
 
 // ── Help ─────────────────────────────────────────────────────────────
 static void PrintHelp()
