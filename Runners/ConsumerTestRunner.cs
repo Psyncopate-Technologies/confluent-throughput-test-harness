@@ -41,7 +41,8 @@ public class ConsumerTestRunner
         var avroDeserializer = new AvroDeserializer<GenericRecord>(schemaRegistry);
         var byteCounter = new ByteCountingAsyncDeserializer<GenericRecord>(avroDeserializer);
 
-        using var consumer = new ConsumerBuilder<string, GenericRecord>(consumerConfig)
+        using var consumer = new ConsumerBuilder<int, GenericRecord>(consumerConfig)
+            .SetKeyDeserializer(new AvroDeserializer<int>(schemaRegistry).AsSyncOverAsync())
             .SetValueDeserializer(byteCounter.AsSyncOverAsync())
             .SetErrorHandler((_, e) => Console.Error.WriteLine($"Consumer error: {e.Reason}"))
             .Build();
@@ -52,7 +53,7 @@ public class ConsumerTestRunner
     private Task<TestResult> RunJsonAsync(TestDefinition test, int runNumber)
     {
         if (test.Size == PayloadSize.Small)
-            return RunJsonTypedAsync<TestAvroDataTypesMsg>(test, runNumber);
+            return RunJsonTypedAsync<FreightDboTblLoadsSmall>(test, runNumber);
         else
             return RunJsonTypedAsync<FreightDboTblLoads>(test, runNumber);
     }
@@ -66,7 +67,7 @@ public class ConsumerTestRunner
         var jsonDeserializer = new JsonDeserializer<T>();
         var byteCounter = new ByteCountingAsyncDeserializer<T>(jsonDeserializer);
 
-        using var consumer = new ConsumerBuilder<string, T>(consumerConfig)
+        using var consumer = new ConsumerBuilder<int, T>(consumerConfig)
             .SetValueDeserializer(byteCounter.AsSyncOverAsync())
             .SetErrorHandler((_, e) => Console.Error.WriteLine($"Consumer error: {e.Reason}"))
             .Build();
@@ -75,7 +76,7 @@ public class ConsumerTestRunner
     }
 
     private TestResult ConsumeMessages<TValue>(
-        IConsumer<string, TValue> consumer,
+        IConsumer<int, TValue> consumer,
         TestDefinition test,
         int runNumber,
         Func<long> getBytesConsumed)
@@ -96,14 +97,12 @@ public class ConsumerTestRunner
                 var result = consumer.Consume(timeout);
                 if (result == null)
                 {
-                    // No more messages within timeout - topic may not have enough messages
                     Console.WriteLine($"  [WARNING] Timeout waiting for messages at {messagesConsumed}/{test.MessageCount}");
                     break;
                 }
 
                 if (result.IsPartitionEOF)
                 {
-                    // Reached end of partition, but may have more partitions
                     continue;
                 }
 

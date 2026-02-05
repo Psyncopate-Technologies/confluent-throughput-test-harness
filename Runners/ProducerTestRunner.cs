@@ -60,34 +60,25 @@ public class ProducerTestRunner
             AutoRegisterSchemas = false,
             UseLatestVersion = true
         };
-        using var producer = new ProducerBuilder<string, GenericRecord>(producerConfig)
+        using var producer = new ProducerBuilder<int, GenericRecord>(producerConfig)
+            .SetKeySerializer(new AvroSerializer<int>(schemaRegistry, avroSerializerConfig).AsSyncOverAsync())
             .SetValueSerializer(new AvroSerializer<GenericRecord>(schemaRegistry, avroSerializerConfig).AsSyncOverAsync())
             .Build();
 
         using var monitor = new ResourceMonitor();
         var errors = 0;
-        long totalBytes = 0;
-        var key = $"test-key-{test.Id}-run-{runNumber}";
-
-        // Estimate serialized size from first produce
-        var estimatedBytesPerMessage = 0L;
 
         var sw = Stopwatch.StartNew();
 
         for (var i = 0; i < test.MessageCount; i++)
         {
-            producer.Produce(test.Topic, new Message<string, GenericRecord> { Key = key, Value = record },
+            producer.Produce(test.Topic, new Message<int, GenericRecord> { Key = i + 1, Value = record },
                 dr =>
                 {
                     if (dr.Error.IsError)
                         Interlocked.Increment(ref errors);
-                    else if (estimatedBytesPerMessage == 0 && dr.Message?.Value != null)
-                    {
-                        // Capture size from first successful delivery
-                    }
                 });
 
-            // Periodic flush to avoid buffer overflow
             if (i > 0 && i % 50_000 == 0)
                 producer.Flush(TimeSpan.FromSeconds(30));
         }
@@ -95,9 +86,7 @@ public class ProducerTestRunner
         producer.Flush(TimeSpan.FromSeconds(60));
         sw.Stop();
 
-        // Estimate total bytes: use Avro serialization overhead estimate
-        // For Avro with schema registry: ~5 bytes magic + schema id + encoded payload
-        totalBytes = EstimateAvroBytes(record, test.MessageCount);
+        var totalBytes = EstimateAvroBytes(record, test.MessageCount);
 
         return Task.FromResult(new TestResult
         {
@@ -121,7 +110,7 @@ public class ProducerTestRunner
         using var schemaRegistry = new CachedSchemaRegistryClient(schemaRegistryConfig);
 
         if (test.Size == PayloadSize.Small)
-            return RunJsonTypedAsync<TestAvroDataTypesMsg>(
+            return RunJsonTypedAsync<FreightDboTblLoadsSmall>(
                 test, runNumber, schemaRegistry, producerConfig,
                 new JsonSmallDataFactory());
         else
@@ -143,19 +132,18 @@ public class ProducerTestRunner
             AutoRegisterSchemas = false,
             UseLatestVersion = true
         };
-        using var producer = new ProducerBuilder<string, T>(producerConfig)
+        using var producer = new ProducerBuilder<int, T>(producerConfig)
             .SetValueSerializer(new JsonSerializer<T>(schemaRegistry, jsonSerializerConfig).AsSyncOverAsync())
             .Build();
 
         using var monitor = new ResourceMonitor();
         var errors = 0;
-        var key = $"test-key-{test.Id}-run-{runNumber}";
 
         var sw = Stopwatch.StartNew();
 
         for (var i = 0; i < test.MessageCount; i++)
         {
-            producer.Produce(test.Topic, new Message<string, T> { Key = key, Value = record },
+            producer.Produce(test.Topic, new Message<int, T> { Key = i + 1, Value = record },
                 dr =>
                 {
                     if (dr.Error.IsError)
@@ -169,9 +157,7 @@ public class ProducerTestRunner
         producer.Flush(TimeSpan.FromSeconds(60));
         sw.Stop();
 
-        // Estimate JSON bytes
         var json = System.Text.Json.JsonSerializer.Serialize(record);
-        // JSON Schema Registry adds: 1 byte magic + 4 bytes schema id = 5 bytes overhead
         var bytesPerMessage = System.Text.Encoding.UTF8.GetByteCount(json) + 5;
         var totalBytes = (long)bytesPerMessage * test.MessageCount;
 
@@ -191,14 +177,12 @@ public class ProducerTestRunner
 
     private long EstimateAvroBytes(GenericRecord record, int messageCount)
     {
-        // Serialize once to get actual size
         using var ms = new MemoryStream();
         var writer = new Avro.Generic.GenericDatumWriter<GenericRecord>(record.Schema);
         var encoder = new Avro.IO.BinaryEncoder(ms);
         writer.Write(record, encoder);
         encoder.Flush();
         var payloadSize = ms.Length;
-        // Schema Registry wire format: 1 magic byte + 4 schema ID bytes + payload
         var bytesPerMessage = payloadSize + 5;
         return bytesPerMessage * messageCount;
     }

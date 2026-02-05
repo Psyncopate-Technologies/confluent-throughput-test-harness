@@ -1,0 +1,31 @@
+{
+  "type": "record",
+  "name": "freight_dbo_tblloads_small",
+  "fields": [
+    { "name": "Id_", "type": ["null", "int"], "default": null },
+    { "name": "LoadDate", "type": ["null", { "type": "long", "logicalType": "timestamp-millis" }], "default": null },
+    { "name": "PONumber", "type": "int", "default": 0 },
+    { "name": "CarrierId", "type": ["null", "int"], "default": null },
+    { "name": "CarrierName", "type": ["null", { "type": "string", "logicalType": "varchar", "maxLength": 50 }], "default": null },
+    { "name": "DriverId", "type": ["null", "int"], "default": null },
+    { "name": "DriverName", "type": ["null", { "type": "string", "logicalType": "varchar", "maxLength": 50 }], "default": null },
+    { "name": "DeliveryDate", "type": ["null", { "type": "long", "logicalType": "timestamp-millis" }], "default": null },
+    { "name": "Remarks", "type": ["null", { "type": "string", "logicalType": "varchar", "maxLength": 2000 }], "default": null },
+    { "name": "Dispatched_YN", "type": ["null", "boolean"], "default": null },
+    { "name": "Covered_YN", "type": ["null", "boolean"], "default": null },
+    { "name": "PayTruckAmount", "type": ["null", { "type": "bytes", "logicalType": "decimal", "precision": 19, "scale": 4 }], "default": null },
+    { "name": "TrailerType", "type": ["null", { "type": "string", "logicalType": "varchar", "maxLength": 50 }], "default": null },
+    { "name": "CustomerName", "type": ["null", { "type": "string", "logicalType": "varchar", "maxLength": 255 }], "default": null },
+    { "name": "CustomerPO", "type": ["null", { "type": "string", "logicalType": "varchar", "maxLength": 255 }], "default": null },
+    { "name": "DateChanged", "type": ["null", { "type": "long", "logicalType": "timestamp-millis" }], "default": null },
+    { "name": "UniqueId", "type": ["null", { "type": "string", "logicalType": "char", "maxLength": 50 }], "default": null },
+    { "name": "DateCreated", "type": ["null", { "type": "long", "logicalType": "timestamp-millis" }], "default": null },
+    { "name": "ExpenseTotal", "type": ["null", { "type": "bytes", "logicalType": "decimal", "precision": 10, "scale": 4 }], "default": null },
+    { "name": "ChargesTotal", "type": ["null", { "type": "bytes", "logicalType": "decimal", "precision": 10, "scale": 4 }], "default": null },
+    { "name": "Weight", "type": ["null", "int"], "default": null },
+    { "name": "RoadMiles", "type": ["null", "int"], "default": null },
+    { "name": "rowguid", "type": { "type": "string", "logicalType": "char", "maxLength": 36 }, "default": "" },
+    { "name": "__cdc_integ_key", "type": { "type": "string", "logicalType": "varchar", "maxLength": 45 }, "default": "" },
+    { "name": "__cdc_op_val", "type": "int", "default": 0 }
+  ]
+}

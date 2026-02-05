@@ -1,0 +1,33 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "freight_dbo_tblloads_small",
+  "type": "object",
+  "properties": {
+    "Id_": { "type": ["null", "integer"] },
+    "LoadDate": { "type": ["null", "integer"], "description": "timestamp-millis" },
+    "PONumber": { "type": "integer" },
+    "CarrierId": { "type": ["null", "integer"] },
+    "CarrierName": { "type": ["null", "string"], "maxLength": 50 },
+    "DriverId": { "type": ["null", "integer"] },
+    "DriverName": { "type": ["null", "string"], "maxLength": 50 },
+    "DeliveryDate": { "type": ["null", "integer"], "description": "timestamp-millis" },
+    "Remarks": { "type": ["null", "string"], "maxLength": 2000 },
+    "Dispatched_YN": { "type": ["null", "boolean"] },
+    "Covered_YN": { "type": ["null", "boolean"] },
+    "PayTruckAmount": { "type": ["null", "number"] },
+    "TrailerType": { "type": ["null", "string"], "maxLength": 50 },
+    "CustomerName": { "type": ["null", "string"], "maxLength": 255 },
+    "CustomerPO": { "type": ["null", "string"], "maxLength": 255 },
+    "DateChanged": { "type": ["null", "integer"], "description": "timestamp-millis" },
+    "UniqueId": { "type": ["null", "string"], "maxLength": 50 },
+    "DateCreated": { "type": ["null", "integer"], "description": "timestamp-millis" },
+    "ExpenseTotal": { "type": ["null", "number"] },
+    "ChargesTotal": { "type": ["null", "number"] },
+    "Weight": { "type": ["null", "integer"] },
+    "RoadMiles": { "type": ["null", "integer"] },
+    "rowguid": { "type": "string", "maxLength": 36 },
+    "__cdc_integ_key": { "type": "string", "maxLength": 45 },
+    "__cdc_op_val": { "type": "integer" }
+  },
+  "required": ["PONumber", "rowguid", "__cdc_integ_key", "__cdc_op_val"]
+}

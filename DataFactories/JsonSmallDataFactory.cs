@@ -2,68 +2,40 @@ using ConfluentThroughputTestHarness.Models;
 
 namespace ConfluentThroughputTestHarness.DataFactories;
 
-public class JsonSmallDataFactory : ITestDataFactory<TestAvroDataTypesMsg>
+public class JsonSmallDataFactory : ITestDataFactory<FreightDboTblLoadsSmall>
 {
-    public TestAvroDataTypesMsg CreateRecord()
+    public FreightDboTblLoadsSmall CreateRecord()
     {
         var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        var nowMicros = now * 1000;
         var guid = Guid.NewGuid().ToString();
 
-        return new TestAvroDataTypesMsg
+        return new FreightDboTblLoadsSmall
         {
-            Guid1 = guid,
-            Guid1N = guid,
-            Guid1NV = guid,
-            Bool1 = true,
-            Bool1N = true,
-            Bool1NV = false,
-            String1 = "TestStringValue",
-            String1N = "NullableStringWithValue",
-            String1NV = "AnotherString",
-            Int1 = 42,
-            Int1N = 100,
-            Int1NV = 200,
-            Long1 = 123456789L,
-            Long1N = 987654321L,
-            Long1NV = 555555555L,
-            Float1 = 3.14f,
-            Float1N = 2.718f,
-            Float1NV = 1.414f,
-            Double1 = 3.14159265358979,
-            Double1N = 2.71828182845905,
-            Double1NV = 1.41421356237310,
-            Decimal1 = 1234567.8m,
-            Decimal1N = 9876543.2m,
-            Decimal1NV = 1111111.1m,
-            Decimal2 = 123456.78m,
-            Decimal2N = 987654.32m,
-            Decimal2NV = 111111.11m,
-            Decimal4 = 1234.5678m,
-            Decimal4N = 9876.5432m,
-            Decimal4NV = 1111.1111m,
-            DTUnspecified = now,
-            DTUnspecifiedN = now,
-            DTUnspecifiedNV = now,
-            DTUTC = now,
-            DTUTCN = now,
-            DTUTCNV = now,
-            DTUTCMillis = now,
-            DTUTCMicros = nowMicros,
-            DTLocal = now,
-            DTLocalN = now,
-            DTLocalNV = now,
-            DTLocalMillis = now,
-            DTLocalMicros = nowMicros,
-            DTOUTC1 = now,
-            DTOUTC1N = now,
-            DTOUTC1NV = now,
-            DTOLocal1 = now,
-            DTOLocal1N = now,
-            DTOLocal1NV = now,
-            OrderStatus1 = "Shipped",
-            OrderStatus1N = "Pending",
-            OrderStatus1NV = "Delivered"
+            Id_ = 100001,
+            LoadDate = now,
+            PONumber = 50001,
+            CarrierId = 2001,
+            CarrierName = "FastFreight Logistics LLC",
+            DriverId = 3001,
+            DriverName = "John Smith",
+            DeliveryDate = now,
+            Remarks = "Standard delivery - no special handling required. Customer has dock access available 7AM-5PM weekdays.",
+            Dispatched_YN = true,
+            Covered_YN = true,
+            PayTruckAmount = 2500.0000m,
+            TrailerType = "Refrigerated",
+            CustomerName = "Acme Food Distribution Inc.",
+            CustomerPO = "PO-2024-78543",
+            DateChanged = now,
+            UniqueId = guid,
+            DateCreated = now,
+            ExpenseTotal = 3250.0000m,
+            ChargesTotal = 4100.0000m,
+            Weight = 42000,
+            RoadMiles = 487,
+            rowguid = Guid.NewGuid().ToString("D").Substring(0, 36),
+            __cdc_integ_key = "100001",
+            __cdc_op_val = 1
         };
     }
 }

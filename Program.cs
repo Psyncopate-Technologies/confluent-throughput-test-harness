@@ -47,7 +47,7 @@ LogicalTypeFactory.Instance.Register(new CharLogicalType());
 
 // ── Load Schemas ─────────────────────────────────────────────────────
 var schemasDir = Path.Combine(AppContext.BaseDirectory, "Schemas");
-var smallSchemaJson = await File.ReadAllTextAsync(Path.Combine(schemasDir, "TestAvroDataTypesMsg.g.avsc"));
+var smallSchemaJson = await File.ReadAllTextAsync(Path.Combine(schemasDir, "freight-small-value.avsc"));
 var largeSchemaJson = await File.ReadAllTextAsync(Path.Combine(schemasDir, "schema-cdc_freight_dbo_tblloads-value-v4.avsc"));
 
 var smallSchema = (RecordSchema)Schema.Parse(smallSchemaJson);
@@ -138,9 +138,9 @@ static void PrintHelp()
     AnsiConsole.MarkupLine("  dotnet run -- --help              Show this help");
     AnsiConsole.WriteLine();
     AnsiConsole.MarkupLine("[bold]Tests:[/]");
-    AnsiConsole.MarkupLine("  T1.1  Producer Avro Small (58 fields)");
+    AnsiConsole.MarkupLine("  T1.1  Producer Avro Small (25 fields)");
     AnsiConsole.MarkupLine("  T1.2  Producer Avro Large (104 fields)");
-    AnsiConsole.MarkupLine("  T1.3  Producer JSON Small (58 fields)");
+    AnsiConsole.MarkupLine("  T1.3  Producer JSON Small (25 fields)");
     AnsiConsole.MarkupLine("  T1.4  Producer JSON Large (104 fields)");
     AnsiConsole.MarkupLine("  T2.1  Consumer Avro Small");
     AnsiConsole.MarkupLine("  T2.2  Consumer Avro Large");
