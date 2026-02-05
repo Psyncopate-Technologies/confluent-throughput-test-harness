@@ -140,43 +140,34 @@ foreach (var test in testList)
 
         if (test.Duration.HasValue)
         {
-            // ── Duration mode: show a progress bar with elapsed/remaining time ──
+            // ── Duration mode: show a spinner with live countdown in the status text ──
             var totalSeconds = test.Duration.Value.TotalSeconds;
             var durationDisplay = test.Duration.Value.ToString(@"mm\:ss");
             TestResult? progressResult = null;
 
-            await AnsiConsole.Progress()
-                .AutoClear(true)
-                .HideCompleted(false)
-                .Columns(
-                    new TaskDescriptionColumn(),
-                    new ProgressBarColumn(),
-                    new PercentageColumn(),
-                    new RemainingTimeColumn(),
-                    new SpinnerColumn())
-                .StartAsync(async ctx =>
+            await AnsiConsole.Status()
+                .Spinner(Spinner.Known.Dots)
+                .StartAsync(
+                    $"Run {run}/{test.Runs} | 0 msgs | 00:00 / {durationDisplay} | {durationDisplay} remaining",
+                    async ctx =>
                 {
-                    var task = ctx.AddTask($"Run {run}/{test.Runs}", maxValue: totalSeconds);
-
                     Action<int, TimeSpan> onProgress = (msgs, elapsed) =>
                     {
-                        task.Value = Math.Min(elapsed.TotalSeconds, totalSeconds);
-                        var remaining = test.Duration.Value - elapsed;
+                        var remaining = test.Duration!.Value - elapsed;
                         if (remaining < TimeSpan.Zero) remaining = TimeSpan.Zero;
-                        task.Description =
+                        var pct = (int)(elapsed.TotalSeconds / totalSeconds * 100);
+                        var filled = pct / 5;   // 20-char bar
+                        var bar = new string('\u2588', filled) + new string('\u2591', 20 - filled);
+                        ctx.Status(
                             $"Run {run}/{test.Runs} | {msgs:N0} msgs | " +
                             $"{elapsed:mm\\:ss} / {durationDisplay} | " +
-                            $"{remaining:mm\\:ss} remaining";
+                            $"{remaining:mm\\:ss} remaining | {bar} {pct}%");
                     };
 
                     if (test.Type == TestType.Producer)
                         progressResult = await producerRunner.RunAsync(test, run, onProgress);
                     else
                         progressResult = await consumerRunner.RunAsync(test, run, onProgress);
-
-                    // Ensure the bar reaches 100% on completion
-                    task.Value = totalSeconds;
-                    task.Description = $"Run {run}/{test.Runs} | {progressResult.MessageCount:N0} msgs | Complete";
                 });
 
             result = progressResult!;
