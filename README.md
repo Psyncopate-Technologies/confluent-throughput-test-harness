@@ -255,23 +255,58 @@ Create `appsettings.Development.json` in the project root:
 # Restore dependencies and build
 dotnet restore
 dotnet build
+```
 
-# Run all tests in count mode (default: 100K messages per run)
+### CLI Flags
+
+| Flag | Description |
+|------|-------------|
+| `--producer-only` | Run only producer tests (T1.1--T1.4) |
+| `--consumer-only` | Run only consumer tests (T2.1--T2.4) |
+| `--test <ID>` | Run a single test by ID (e.g., `T1.1`, `T2.3`) |
+| `--duration <N>` | Run each test for N minutes instead of a fixed message count |
+| `--help` | Show usage information |
+
+### Execution Scenarios
+
+```bash
+# ── Count Mode (default: 100K messages per run) ─────────────────────
+
+# Run all 8 tests (T1.1-T1.4 producers, then T2.1-T2.4 consumers)
 dotnet run
 
-# Run all tests in duration mode (10 minutes per run)
+# Run only the 4 producer tests
+dotnet run -- --producer-only
+
+# Run only the 4 consumer tests (topics must already contain messages)
+dotnet run -- --consumer-only
+
+# Run a single producer test
+dotnet run -- --test T1.1
+
+# Run a single consumer test
+dotnet run -- --test T2.3
+
+# ── Duration Mode (produce/consume for N minutes per run) ───────────
+
+# Run all 8 tests, 10 minutes per run
 dotnet run -- --duration 10
 
 # Run only producer tests for 15 minutes each
 dotnet run -- --producer-only --duration 15
 
-# Run only consumer tests (topics must already contain messages)
-dotnet run -- --consumer-only
+# Run only consumer tests for 10 minutes each
+dotnet run -- --consumer-only --duration 10
 
-# Run a specific test for 20 minutes
+# Run a single producer test for 20 minutes
 dotnet run -- --test T1.2 --duration 20
 
-# Show help
+# Run a single consumer test for 10 minutes
+dotnet run -- --test T2.4 --duration 10
+
+# ── Help ────────────────────────────────────────────────────────────
+
+# Show usage and test IDs
 dotnet run -- --help
 ```
 
