@@ -1,0 +1,26 @@
+## .NET
+bin/
+obj/
+*.user
+*.suo
+*.cache
+*.dll
+*.exe
+*.pdb
+*.nupkg
+
+## IDE
+.vs/
+.vscode/
+.idea/
+*.swp
+*~
+
+## Secrets - never commit real credentials
+appsettings.Development.json
+credentials/
+*.credentials.json
+
+## Test output
+results/
+*.csv

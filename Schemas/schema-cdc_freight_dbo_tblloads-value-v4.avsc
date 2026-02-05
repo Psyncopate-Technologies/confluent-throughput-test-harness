@@ -1,0 +1,1246 @@
+{
+  "fields": [
+    {
+      "default": null,
+      "name": "Id_",
+      "type": [
+        "null",
+        "int"
+      ]
+    },
+    {
+      "default": null,
+      "name": "LoadDate",
+      "type": [
+        "null",
+        {
+          "logicalType": "timestamp-millis",
+          "type": "long"
+        }
+      ]
+    },
+    {
+      "default": null,
+      "name": "SystemDate",
+      "type": [
+        "null",
+        {
+          "logicalType": "timestamp-millis",
+          "type": "long"
+        }
+      ]
+    },
+    {
+      "default": 0,
+      "name": "PONumber",
+      "type": "int"
+    },
+    {
+      "default": null,
+      "name": "LoadSplitNumber",
+      "type": [
+        "null",
+        "int"
+      ]
+    },
+    {
+      "default": null,
+      "name": "CarrierId",
+      "type": [
+        "null",
+        "int"
+      ]
+    },
+    {
+      "default": null,
+      "name": "CarrierName",
+      "type": [
+        "null",
+        {
+          "logicalType": "varchar",
+          "maxLength": 50,
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "default": null,
+      "name": "DriverId",
+      "type": [
+        "null",
+        "int"
+      ]
+    },
+    {
+      "default": null,
+      "name": "DriverName",
+      "type": [
+        "null",
+        {
+          "logicalType": "varchar",
+          "maxLength": 50,
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "default": null,
+      "name": "DeliveryDate",
+      "type": [
+        "null",
+        {
+          "logicalType": "timestamp-millis",
+          "type": "long"
+        }
+      ]
+    },
+    {
+      "default": null,
+      "name": "Remarks",
+      "type": [
+        "null",
+        {
+          "logicalType": "varchar",
+          "maxLength": 2000,
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "default": null,
+      "name": "SalesPersonId",
+      "type": [
+        "null",
+        "int"
+      ]
+    },
+    {
+      "default": null,
+      "name": "SalesPersonName",
+      "type": [
+        "null",
+        {
+          "logicalType": "varchar",
+          "maxLength": 50,
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "default": null,
+      "name": "SavedBySalesPersonId",
+      "type": [
+        "null",
+        "int"
+      ]
+    },
+    {
+      "default": null,
+      "name": "SavedBySalesPersonName",
+      "type": [
+        "null",
+        {
+          "logicalType": "varchar",
+          "maxLength": 50,
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "default": null,
+      "name": "CheckIn_YN",
+      "type": [
+        "null",
+        {
+          "logicalType": "varchar",
+          "maxLength": 10,
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "default": null,
+      "name": "Dispatched_YN",
+      "type": [
+        "null",
+        "boolean"
+      ]
+    },
+    {
+      "default": null,
+      "name": "Covered_YN",
+      "type": [
+        "null",
+        "boolean"
+      ]
+    },
+    {
+      "default": null,
+      "name": "Temperature",
+      "type": [
+        "null",
+        {
+          "logicalType": "varchar",
+          "maxLength": 50,
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "default": null,
+      "name": "TripMiles",
+      "type": [
+        "null",
+        {
+          "logicalType": "varchar",
+          "maxLength": 50,
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "default": null,
+      "name": "Inactive_YN",
+      "type": [
+        "null",
+        "boolean"
+      ]
+    },
+    {
+      "default": null,
+      "name": "PayCarrier_YN",
+      "type": [
+        "null",
+        "boolean"
+      ]
+    },
+    {
+      "default": null,
+      "name": "PayImportDate_YN",
+      "type": [
+        "null",
+        "boolean"
+      ]
+    },
+    {
+      "default": null,
+      "name": "BillAllCustomers_YN",
+      "type": [
+        "null",
+        "boolean"
+      ]
+    },
+    {
+      "default": null,
+      "name": "BillCustomerImportData_YN",
+      "type": [
+        "null",
+        "boolean"
+      ]
+    },
+    {
+      "default": null,
+      "name": "PayTruckAmount",
+      "type": [
+        "null",
+        {
+          "logicalType": "decimal",
+          "precision": 19,
+          "scale": 4,
+          "type": "bytes"
+        }
+      ]
+    },
+    {
+      "default": null,
+      "name": "TrailerType",
+      "type": [
+        "null",
+        {
+          "logicalType": "varchar",
+          "maxLength": 50,
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "default": null,
+      "name": "TrailerId",
+      "type": [
+        "null",
+        "int"
+      ]
+    },
+    {
+      "default": null,
+      "name": "TrailerSize",
+      "type": [
+        "null",
+        {
+          "logicalType": "varchar",
+          "maxLength": 50,
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "default": null,
+      "name": "TrailerSizeId",
+      "type": [
+        "null",
+        "int"
+      ]
+    },
+    {
+      "default": null,
+      "name": "UrgentMessage",
+      "type": [
+        "null",
+        "boolean"
+      ]
+    },
+    {
+      "default": null,
+      "name": "PalletExchange",
+      "type": [
+        "null",
+        "boolean"
+      ]
+    },
+    {
+      "default": null,
+      "name": "ReceiverUnloading",
+      "type": [
+        "null",
+        "boolean"
+      ]
+    },
+    {
+      "default": null,
+      "name": "UnloadingCharges",
+      "type": [
+        "null",
+        "int"
+      ]
+    },
+    {
+      "default": null,
+      "name": "DeliveredOnTime",
+      "type": [
+        "null",
+        "boolean"
+      ]
+    },
+    {
+      "default": null,
+      "name": "NeedsAttention",
+      "type": [
+        "null",
+        "boolean"
+      ]
+    },
+    {
+      "default": null,
+      "name": "Void",
+      "type": [
+        "null",
+        "boolean"
+      ]
+    },
+    {
+      "default": null,
+      "name": "Locked",
+      "type": [
+        "null",
+        "boolean"
+      ]
+    },
+    {
+      "default": null,
+      "name": "Claim",
+      "type": [
+        "null",
+        "boolean"
+      ]
+    },
+    {
+      "default": null,
+      "name": "TrailerComments",
+      "type": [
+        "null",
+        {
+          "logicalType": "varchar",
+          "maxLength": 300,
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "default": null,
+      "name": "CustomerName",
+      "type": [
+        "null",
+        {
+          "logicalType": "varchar",
+          "maxLength": 255,
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "default": null,
+      "name": "CustomerPO",
+      "type": [
+        "null",
+        {
+          "logicalType": "varchar",
+          "maxLength": 255,
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "default": null,
+      "name": "CheckCallList",
+      "type": [
+        "null",
+        "int"
+      ]
+    },
+    {
+      "default": null,
+      "name": "LoadStatusInfo",
+      "type": [
+        "null",
+        "int"
+      ]
+    },
+    {
+      "default": null,
+      "name": "DataChanged",
+      "type": [
+        "null",
+        "int"
+      ]
+    },
+    {
+      "default": null,
+      "name": "DateChanged",
+      "type": [
+        "null",
+        {
+          "logicalType": "timestamp-millis",
+          "type": "long"
+        }
+      ]
+    },
+    {
+      "default": null,
+      "name": "SplitLoad",
+      "type": [
+        "null",
+        "boolean"
+      ]
+    },
+    {
+      "default": null,
+      "name": "Consignees",
+      "type": [
+        "null",
+        {
+          "logicalType": "varchar",
+          "maxLength": 300,
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "default": null,
+      "name": "DriversCellPhone",
+      "type": [
+        "null",
+        {
+          "logicalType": "varchar",
+          "maxLength": 20,
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "default": null,
+      "name": "DateMarkedDelivered",
+      "type": [
+        "null",
+        {
+          "logicalType": "timestamp-millis",
+          "type": "long"
+        }
+      ]
+    },
+    {
+      "default": null,
+      "name": "QuickBooksStatus",
+      "type": [
+        "null",
+        "int"
+      ]
+    },
+    {
+      "default": null,
+      "name": "QuickBooksStatusReason",
+      "type": [
+        "null",
+        {
+          "logicalType": "varchar",
+          "maxLength": 50,
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "default": null,
+      "name": "NoSundayCC",
+      "type": [
+        "null",
+        "boolean"
+      ]
+    },
+    {
+      "default": null,
+      "name": "DateSentToQB",
+      "type": [
+        "null",
+        {
+          "logicalType": "timestamp-millis",
+          "type": "long"
+        }
+      ]
+    },
+    {
+      "default": null,
+      "name": "UniqueId",
+      "type": [
+        "null",
+        {
+          "logicalType": "char",
+          "maxLength": 50,
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "default": null,
+      "name": "DateCreated",
+      "type": [
+        "null",
+        {
+          "logicalType": "timestamp-millis",
+          "type": "long"
+        }
+      ]
+    },
+    {
+      "default": null,
+      "name": "CreatedBy",
+      "type": [
+        "null",
+        {
+          "logicalType": "varchar",
+          "maxLength": 50,
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "default": null,
+      "name": "Computer",
+      "type": [
+        "null",
+        {
+          "logicalType": "varchar",
+          "maxLength": 20,
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "default": null,
+      "name": "Dispatcher",
+      "type": [
+        "null",
+        {
+          "logicalType": "varchar",
+          "maxLength": 50,
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "default": null,
+      "name": "Pallets",
+      "type": [
+        "null",
+        "int"
+      ]
+    },
+    {
+      "default": null,
+      "name": "TimeToCheckBy",
+      "type": [
+        "null",
+        {
+          "logicalType": "timestamp-millis",
+          "type": "long"
+        }
+      ]
+    },
+    {
+      "default": null,
+      "name": "NetworkLogon",
+      "type": [
+        "null",
+        {
+          "logicalType": "varchar",
+          "maxLength": 20,
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "default": null,
+      "name": "AssistantId",
+      "type": [
+        "null",
+        "int"
+      ]
+    },
+    {
+      "default": null,
+      "name": "RoadMiles",
+      "type": [
+        "null",
+        "int"
+      ]
+    },
+    {
+      "default": null,
+      "name": "ExpenseTotal",
+      "type": [
+        "null",
+        {
+          "logicalType": "decimal",
+          "precision": 10,
+          "scale": 4,
+          "type": "bytes"
+        }
+      ]
+    },
+    {
+      "default": null,
+      "name": "ChargesTotal",
+      "type": [
+        "null",
+        {
+          "logicalType": "decimal",
+          "precision": 10,
+          "scale": 4,
+          "type": "bytes"
+        }
+      ]
+    },
+    {
+      "default": null,
+      "name": "CustomerBillTotal",
+      "type": [
+        "null",
+        {
+          "logicalType": "decimal",
+          "precision": 10,
+          "scale": 4,
+          "type": "bytes"
+        }
+      ]
+    },
+    {
+      "default": null,
+      "name": "Weight",
+      "type": [
+        "null",
+        "int"
+      ]
+    },
+    {
+      "default": null,
+      "name": "ChargeCustomerUnloadingTotal",
+      "type": [
+        "null",
+        {
+          "logicalType": "decimal",
+          "precision": 10,
+          "scale": 4,
+          "type": "bytes"
+        }
+      ]
+    },
+    {
+      "default": null,
+      "name": "PayCarrierUnloadingTotal",
+      "type": [
+        "null",
+        {
+          "logicalType": "decimal",
+          "precision": 10,
+          "scale": 4,
+          "type": "bytes"
+        }
+      ]
+    },
+    {
+      "default": null,
+      "name": "CurrentCarrierStatus",
+      "type": [
+        "null",
+        "int"
+      ]
+    },
+    {
+      "default": null,
+      "name": "VoidReason",
+      "type": [
+        "null",
+        {
+          "logicalType": "varchar",
+          "maxLength": 500,
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "default": null,
+      "name": "DeliveredLoadChange",
+      "type": [
+        "null",
+        "boolean"
+      ]
+    },
+    {
+      "default": null,
+      "name": "InternalDatSearch",
+      "type": [
+        "null",
+        "int"
+      ]
+    },
+    {
+      "default": null,
+      "name": "DriverReload",
+      "type": [
+        "null",
+        "boolean"
+      ]
+    },
+    {
+      "default": null,
+      "name": "MinPayTruck",
+      "type": [
+        "null",
+        {
+          "logicalType": "decimal",
+          "precision": 19,
+          "scale": 4,
+          "type": "bytes"
+        }
+      ]
+    },
+    {
+      "default": null,
+      "name": "MaxPayTruck",
+      "type": [
+        "null",
+        {
+          "logicalType": "decimal",
+          "precision": 19,
+          "scale": 4,
+          "type": "bytes"
+        }
+      ]
+    },
+    {
+      "default": null,
+      "name": "DateTurnedIn",
+      "type": [
+        "null",
+        {
+          "logicalType": "timestamp-millis",
+          "type": "long"
+        }
+      ]
+    },
+    {
+      "default": null,
+      "name": "CarrierUniqueId",
+      "type": [
+        "null",
+        {
+          "logicalType": "char",
+          "maxLength": 50,
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "default": "",
+      "name": "rowguid",
+      "type": {
+        "logicalType": "char",
+        "maxLength": 36,
+        "type": "string"
+      }
+    },
+    {
+      "default": null,
+      "name": "NightCoverLoad",
+      "type": [
+        "null",
+        "int"
+      ]
+    },
+    {
+      "default": null,
+      "name": "SendToCRS",
+      "type": [
+        "null",
+        "boolean"
+      ]
+    },
+    {
+      "default": null,
+      "name": "NeedAppointment",
+      "type": [
+        "null",
+        "int"
+      ]
+    },
+    {
+      "default": null,
+      "name": "OKForComcheck",
+      "type": [
+        "null",
+        "int"
+      ]
+    },
+    {
+      "default": null,
+      "name": "ComcheckAmount",
+      "type": [
+        "null",
+        {
+          "logicalType": "varchar",
+          "maxLength": 50,
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "default": null,
+      "name": "CSATask",
+      "type": [
+        "null",
+        {
+          "logicalType": "varchar",
+          "maxLength": 100,
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "default": null,
+      "name": "CustomerRCDate",
+      "type": [
+        "null",
+        {
+          "logicalType": "timestamp-millis",
+          "type": "long"
+        }
+      ]
+    },
+    {
+      "default": null,
+      "name": "DriverUniqueId",
+      "type": [
+        "null",
+        {
+          "logicalType": "varchar",
+          "maxLength": 50,
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "default": null,
+      "name": "Lane",
+      "type": [
+        "null",
+        {
+          "logicalType": "varchar",
+          "maxLength": 50,
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "default": null,
+      "name": "CSAUserID",
+      "type": [
+        "null",
+        "int"
+      ]
+    },
+    {
+      "default": null,
+      "name": "RecordStatus",
+      "type": [
+        "null",
+        "int"
+      ]
+    },
+    {
+      "default": null,
+      "name": "LabelPrinted",
+      "type": [
+        "null",
+        "int"
+      ]
+    },
+    {
+      "default": null,
+      "name": "GPStatus",
+      "type": [
+        "null",
+        "int"
+      ]
+    },
+    {
+      "default": null,
+      "name": "Location",
+      "type": [
+        "null",
+        "int"
+      ]
+    },
+    {
+      "default": null,
+      "name": "IDATRadius",
+      "type": [
+        "null",
+        "int"
+      ]
+    },
+    {
+      "default": null,
+      "name": "LoadCommodityType",
+      "type": [
+        "null",
+        "int"
+      ]
+    },
+    {
+      "default": null,
+      "name": "PickupCount",
+      "type": [
+        "null",
+        "int"
+      ]
+    },
+    {
+      "default": null,
+      "name": "DropCount",
+      "type": [
+        "null",
+        "int"
+      ]
+    },
+    {
+      "default": null,
+      "name": "PracticalMiles",
+      "type": [
+        "null",
+        "int"
+      ]
+    },
+    {
+      "default": null,
+      "name": "ShortMiles",
+      "type": [
+        "null",
+        "int"
+      ]
+    },
+    {
+      "default": null,
+      "name": "DispatcherUniqueID",
+      "type": [
+        "null",
+        {
+          "logicalType": "char",
+          "maxLength": 36,
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "default": null,
+      "name": "CaseCount",
+      "type": [
+        "null",
+        "int"
+      ]
+    },
+    {
+      "default": null,
+      "name": "ServiceType",
+      "type": [
+        "null",
+        "int"
+      ]
+    },
+    {
+      "default": null,
+      "name": "HazmatIndicator",
+      "type": [
+        "null",
+        "int"
+      ]
+    },
+    {
+      "default": null,
+      "name": "LoadValue",
+      "type": [
+        "null",
+        "int"
+      ]
+    },
+    {
+      "default": null,
+      "name": "TemperatureCategory",
+      "type": [
+        "null",
+        "int"
+      ]
+    },
+    {
+      "default": null,
+      "name": "LoadCommodityOther",
+      "type": [
+        "null",
+        {
+          "logicalType": "varchar",
+          "maxLength": 50,
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "default": null,
+      "name": "LoadBoardUserId",
+      "type": [
+        "null",
+        "int"
+      ]
+    },
+    {
+      "default": null,
+      "name": "RateType",
+      "type": [
+        "null",
+        "int"
+      ]
+    },
+    {
+      "default": null,
+      "name": "IsCustomerChargingLateFee",
+      "type": [
+        "null",
+        "boolean"
+      ]
+    },
+    {
+      "default": null,
+      "name": "ExactLoadValue",
+      "type": [
+        "null",
+        {
+          "logicalType": "decimal",
+          "precision": 18,
+          "scale": 2,
+          "type": "bytes"
+        }
+      ]
+    },
+    {
+      "default": null,
+      "name": "CustomerId",
+      "type": [
+        "null",
+        "int"
+      ]
+    },
+    {
+      "default": null,
+      "name": "Driver2Id",
+      "type": [
+        "null",
+        "int"
+      ]
+    },
+    {
+      "default": null,
+      "name": "Driver2Name",
+      "type": [
+        "null",
+        {
+          "logicalType": "varchar",
+          "maxLength": 50,
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "default": null,
+      "name": "Driver2CellPhone",
+      "type": [
+        "null",
+        {
+          "logicalType": "varchar",
+          "maxLength": 20,
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "default": null,
+      "name": "Driver2UniqueId",
+      "type": [
+        "null",
+        {
+          "logicalType": "varchar",
+          "maxLength": 50,
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "default": null,
+      "name": "TeamCover",
+      "type": [
+        "null",
+        "boolean"
+      ]
+    },
+    {
+      "default": null,
+      "name": "EmergencyCover",
+      "type": [
+        "null",
+        "boolean"
+      ]
+    },
+    {
+      "default": null,
+      "name": "DateSentToAccounting",
+      "type": [
+        "null",
+        {
+          "logicalType": "timestamp-millis",
+          "type": "long"
+        }
+      ]
+    },
+    {
+      "default": null,
+      "name": "SentToAccountingByUserId",
+      "type": [
+        "null",
+        "int"
+      ]
+    },
+    {
+      "default": null,
+      "name": "ReeferCheckInDate",
+      "type": [
+        "null",
+        {
+          "logicalType": "timestamp-millis",
+          "type": "long"
+        }
+      ]
+    },
+    {
+      "default": null,
+      "name": "ContainerNumber",
+      "type": [
+        "null",
+        {
+          "logicalType": "varchar",
+          "maxLength": 50,
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "default": null,
+      "name": "TrailerNumber",
+      "type": [
+        "null",
+        {
+          "logicalType": "varchar",
+          "maxLength": 50,
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "default": "",
+      "name": "__cdc_cap_tstamp",
+      "type": {
+        "logicalType": "varchar",
+        "maxLength": 50,
+        "type": "string"
+      }
+    },
+    {
+      "default": "",
+      "name": "__cdc_changedby_user",
+      "type": {
+        "logicalType": "varchar",
+        "maxLength": 45,
+        "type": "string"
+      }
+    },
+    {
+      "default": "",
+      "name": "__cdc_integ_key",
+      "type": {
+        "logicalType": "varchar",
+        "maxLength": 45,
+        "type": "string"
+      }
+    },
+    {
+      "default": "",
+      "name": "__cdc_integ_tstamp",
+      "type": {
+        "logicalType": "varchar",
+        "maxLength": 50,
+        "type": "string"
+      }
+    },
+    {
+      "default": 0,
+      "name": "__cdc_op_val",
+      "type": "int"
+    }
+  ],
+  "name": "freight_dbo_tblloads",
+  "type": "record"
+}
