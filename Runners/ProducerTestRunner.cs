@@ -70,17 +70,20 @@ public class ProducerTestRunner
     /// - A delivery handler callback tracks errors via Interlocked.Increment.
     /// - Flush is called every 50K messages and at the end to drain the internal
     ///   librdkafka buffer before stopping the timer.
+    /// - Each message gets a unique __test_seq and __test_ts via SetMessageHeader(),
+    ///   forcing the serializer to serialize fresh data every time.
+    /// - Supports both count-based (fixed N messages) and duration-based (run for N minutes) modes.
     /// </summary>
     private Task<TestResult> RunAvroAsync(TestDefinition test, int runNumber)
     {
-        // Select the schema and data factory based on payload size (small=25 fields, large=104 fields)
+        // Select the schema and data factory based on payload size (small=27 fields, large=106 fields)
         var schema = test.Size == PayloadSize.Small ? _smallSchema : _largeSchema;
         ITestDataFactory<GenericRecord> factory = test.Size == PayloadSize.Small
             ? new AvroSmallDataFactory(schema)
             : new AvroLargeDataFactory(schema);
 
-        // Create a single record that will be sent for all messages in this run.
-        // This isolates serialization/network throughput from object construction overhead.
+        // Create a single record template. Per-message uniqueness is achieved by
+        // calling SetMessageHeader() before each Produce() to stamp __test_seq and __test_ts.
         var record = factory.CreateRecord();
 
         var producerConfig = BuildProducerConfig();
@@ -108,14 +111,24 @@ public class ProducerTestRunner
         // Start background CPU/memory sampling at 250ms intervals
         using var monitor = new ResourceMonitor();
         var errors = 0;
+        var messageCount = 0;
 
         var sw = Stopwatch.StartNew();
 
-        for (var i = 0; i < test.MessageCount; i++)
+        // Unified loop supports both modes:
+        //   Count-based: produce exactly test.MessageCount messages
+        //   Duration-based: produce continuously until test.Duration elapses
+        while (ShouldContinueProducing(test, messageCount, sw))
         {
+            messageCount++;
+
+            // Stamp per-message header fields to ensure unique content and prove
+            // the serializer is doing real work on every message.
+            factory.SetMessageHeader(record, messageCount, DateTime.UtcNow.ToString("O"));
+
             // Fire-and-forget produce: the delivery handler runs asynchronously
             // on librdkafka's background thread when the broker acknowledges.
-            producer.Produce(test.Topic, new Message<int, GenericRecord> { Key = i + 1, Value = record },
+            producer.Produce(test.Topic, new Message<int, GenericRecord> { Key = messageCount, Value = record },
                 dr =>
                 {
                     if (dr.Error.IsError)
@@ -125,7 +138,7 @@ public class ProducerTestRunner
             // Periodic flush to prevent the internal buffer from growing unbounded.
             // Without this, very fast producers can exhaust memory before messages
             // are transmitted to the broker.
-            if (i > 0 && i % 50_000 == 0)
+            if (messageCount % 50_000 == 0)
                 producer.Flush(TimeSpan.FromSeconds(30));
         }
 
@@ -136,14 +149,14 @@ public class ProducerTestRunner
 
         // Estimate total bytes by Avro-encoding a single record and multiplying.
         // The +5 accounts for the Schema Registry wire format header (1 magic byte + 4 schema ID bytes).
-        var totalBytes = EstimateAvroBytes(record, test.MessageCount);
+        var totalBytes = EstimateAvroBytes(record, messageCount);
 
         return Task.FromResult(new TestResult
         {
             TestId = test.Id,
             TestName = test.Name,
             RunNumber = runNumber,
-            MessageCount = test.MessageCount,
+            MessageCount = messageCount,
             TotalBytes = totalBytes,
             Elapsed = sw.Elapsed,
             PeakCpuPercent = monitor.PeakCpuPercent,
@@ -184,6 +197,9 @@ public class ProducerTestRunner
     ///   the Confluent JsonSerializer has a "where T : class" constraint that prevents
     ///   using it with value types like int.
     /// - Byte count is estimated by serializing one record to JSON and multiplying.
+    /// - Each message gets a unique __test_seq and __test_ts via SetMessageHeader(),
+    ///   forcing the serializer to serialize fresh data every time.
+    /// - Supports both count-based (fixed N messages) and duration-based (run for N minutes) modes.
     /// </summary>
     private Task<TestResult> RunJsonTypedAsync<T>(
         TestDefinition test, int runNumber,
@@ -208,19 +224,26 @@ public class ProducerTestRunner
 
         using var monitor = new ResourceMonitor();
         var errors = 0;
+        var messageCount = 0;
 
         var sw = Stopwatch.StartNew();
 
-        for (var i = 0; i < test.MessageCount; i++)
+        // Unified loop supports both count-based and duration-based modes
+        while (ShouldContinueProducing(test, messageCount, sw))
         {
-            producer.Produce(test.Topic, new Message<int, T> { Key = i + 1, Value = record },
+            messageCount++;
+
+            // Stamp per-message header fields to ensure unique content
+            factory.SetMessageHeader(record, messageCount, DateTime.UtcNow.ToString("O"));
+
+            producer.Produce(test.Topic, new Message<int, T> { Key = messageCount, Value = record },
                 dr =>
                 {
                     if (dr.Error.IsError)
                         Interlocked.Increment(ref errors);
                 });
 
-            if (i > 0 && i % 50_000 == 0)
+            if (messageCount % 50_000 == 0)
                 producer.Flush(TimeSpan.FromSeconds(30));
         }
 
@@ -231,20 +254,32 @@ public class ProducerTestRunner
         // then add 5 bytes for the Schema Registry wire format header.
         var json = System.Text.Json.JsonSerializer.Serialize(record);
         var bytesPerMessage = System.Text.Encoding.UTF8.GetByteCount(json) + 5;
-        var totalBytes = (long)bytesPerMessage * test.MessageCount;
+        var totalBytes = (long)bytesPerMessage * messageCount;
 
         return Task.FromResult(new TestResult
         {
             TestId = test.Id,
             TestName = test.Name,
             RunNumber = runNumber,
-            MessageCount = test.MessageCount,
+            MessageCount = messageCount,
             TotalBytes = totalBytes,
             Elapsed = sw.Elapsed,
             PeakCpuPercent = monitor.PeakCpuPercent,
             PeakMemoryBytes = monitor.PeakMemoryBytes,
             DeliveryErrors = errors
         });
+    }
+
+    /// <summary>
+    /// Determines whether the producer loop should continue based on the test mode.
+    /// Count-based: continues until messageCount reaches test.MessageCount.
+    /// Duration-based: continues until elapsed time reaches test.Duration.
+    /// </summary>
+    private static bool ShouldContinueProducing(TestDefinition test, int messageCount, Stopwatch sw)
+    {
+        return test.Duration.HasValue
+            ? sw.Elapsed < test.Duration.Value
+            : messageCount < test.MessageCount;
     }
 
     /// <summary>

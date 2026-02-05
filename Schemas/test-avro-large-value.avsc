@@ -1239,6 +1239,16 @@
       "default": 0,
       "name": "__cdc_op_val",
       "type": "int"
+    },
+    {
+      "default": 0,
+      "name": "__test_seq",
+      "type": "int"
+    },
+    {
+      "default": "",
+      "name": "__test_ts",
+      "type": "string"
     }
   ],
   "name": "freight_dbo_tblloads",

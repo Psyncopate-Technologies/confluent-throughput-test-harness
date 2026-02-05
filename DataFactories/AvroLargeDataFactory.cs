@@ -156,7 +156,15 @@ public class AvroLargeDataFactory : ITestDataFactory<GenericRecord>
         record.Add("__cdc_integ_key", "100001");
         record.Add("__cdc_integ_tstamp", "2024-01-15T10:30:00.000Z");
         record.Add("__cdc_op_val", 1);
+        record.Add("__test_seq", 0);
+        record.Add("__test_ts", "");
 
         return record;
+    }
+
+    public void SetMessageHeader(GenericRecord record, int sequenceNumber, string timestamp)
+    {
+        record.Add("__test_seq", sequenceNumber);
+        record.Add("__test_ts", timestamp);
     }
 }

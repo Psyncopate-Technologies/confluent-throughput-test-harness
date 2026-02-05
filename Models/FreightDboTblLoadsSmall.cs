@@ -87,4 +87,10 @@ public class FreightDboTblLoadsSmall
 
     [JsonPropertyName("__cdc_op_val")]
     public int __cdc_op_val { get; set; }
+
+    [JsonPropertyName("__test_seq")]
+    public int __test_seq { get; set; }
+
+    [JsonPropertyName("__test_ts")]
+    public string __test_ts { get; set; } = string.Empty;
 }

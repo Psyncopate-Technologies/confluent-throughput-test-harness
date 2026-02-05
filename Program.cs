@@ -44,6 +44,7 @@ config.GetSection("Test").Bind(testSettings);
 //   --producer-only   Run only T1.x producer tests
 //   --consumer-only   Run only T2.x consumer tests
 //   --test <ID>       Run a single test (e.g., T1.1 or T2.3)
+//   --duration <N>    Run each test for N minutes (overrides MessageCount)
 //   --help            Print usage information
 var producerOnly = args.Contains("--producer-only", StringComparer.OrdinalIgnoreCase);
 var consumerOnly = args.Contains("--consumer-only", StringComparer.OrdinalIgnoreCase);
@@ -53,6 +54,12 @@ string? specificTest = null;
 var testIndex = Array.FindIndex(args, a => a.Equals("--test", StringComparison.OrdinalIgnoreCase));
 if (testIndex >= 0 && testIndex + 1 < args.Length)
     specificTest = args[testIndex + 1];
+
+// --duration N overrides the message-count based termination with a time-based one.
+// The value from CLI takes precedence over appsettings.json DurationMinutes.
+var durationIndex = Array.FindIndex(args, a => a.Equals("--duration", StringComparison.OrdinalIgnoreCase));
+if (durationIndex >= 0 && durationIndex + 1 < args.Length && int.TryParse(args[durationIndex + 1], out var durationMinutes))
+    testSettings.DurationMinutes = durationMinutes;
 
 if (helpRequested)
 {
@@ -106,7 +113,10 @@ AnsiConsole.Write(new Rule("[bold]Avro vs JSON Serialization Benchmark[/]").Rule
 AnsiConsole.WriteLine();
 AnsiConsole.MarkupLine($"[grey]Bootstrap:[/] {kafkaSettings.BootstrapServers}");
 AnsiConsole.MarkupLine($"[grey]Schema Registry:[/] {srSettings.Url}");
-AnsiConsole.MarkupLine($"[grey]Messages per test:[/] {testSettings.MessageCount:N0}");
+if (testSettings.DurationMinutes.HasValue)
+    AnsiConsole.MarkupLine($"[grey]Mode:[/] Duration-based ({testSettings.DurationMinutes} min per run)");
+else
+    AnsiConsole.MarkupLine($"[grey]Mode:[/] Count-based ({testSettings.MessageCount:N0} messages per run)");
 AnsiConsole.MarkupLine($"[grey]Tests to run:[/] {string.Join(", ", testList.Select(t => t.Id))}");
 AnsiConsole.WriteLine();
 
@@ -140,11 +150,12 @@ foreach (var test in testList)
 
                 suite.AddResult(result);
 
-                // Print per-run summary: msgs/sec, MB/sec, elapsed time, error count
+                // Print per-run summary: msgs/sec, MB/sec, elapsed time, message count, error count
                 AnsiConsole.MarkupLine(
                     $"  Run {run}: [green]{result.MessagesPerSecond:N0} msgs/sec[/] | " +
                     $"[cyan]{result.MegabytesPerSecond:F2} MB/sec[/] | " +
                     $"{result.Elapsed:mm\\:ss\\.fff} | " +
+                    $"[grey]{result.MessageCount:N0} msgs[/] | " +
                     (result.DeliveryErrors > 0 ? $"[red]{result.DeliveryErrors} errors[/]" : "[grey]0 errors[/]"));
             });
     }
@@ -170,17 +181,22 @@ static void PrintHelp()
     AnsiConsole.MarkupLine("[grey]Benchmarks Avro vs JSON serialization throughput with Confluent Cloud[/]");
     AnsiConsole.WriteLine();
     AnsiConsole.MarkupLine("[bold]Usage:[/]");
-    AnsiConsole.MarkupLine("  dotnet run                        Run all tests");
+    AnsiConsole.MarkupLine("  dotnet run                        Run all tests (count-based, default 100K msgs)");
+    AnsiConsole.MarkupLine("  dotnet run -- --duration 10       Run all tests for 10 minutes each");
     AnsiConsole.MarkupLine("  dotnet run -- --producer-only     Run only producer tests (T1.x)");
     AnsiConsole.MarkupLine("  dotnet run -- --consumer-only     Run only consumer tests (T2.x)");
     AnsiConsole.MarkupLine("  dotnet run -- --test T1.1         Run a specific test");
     AnsiConsole.MarkupLine("  dotnet run -- --help              Show this help");
     AnsiConsole.WriteLine();
+    AnsiConsole.MarkupLine("[bold]Modes:[/]");
+    AnsiConsole.MarkupLine("  Count-based (default):  Produce/consume a fixed number of messages per run");
+    AnsiConsole.MarkupLine("  Duration-based:         Produce/consume for a fixed time (--duration N minutes)");
+    AnsiConsole.WriteLine();
     AnsiConsole.MarkupLine("[bold]Tests:[/]");
-    AnsiConsole.MarkupLine("  T1.1  Producer Avro Small (25 fields)");
-    AnsiConsole.MarkupLine("  T1.2  Producer Avro Large (104 fields)");
-    AnsiConsole.MarkupLine("  T1.3  Producer JSON Small (25 fields)");
-    AnsiConsole.MarkupLine("  T1.4  Producer JSON Large (104 fields)");
+    AnsiConsole.MarkupLine("  T1.1  Producer Avro Small (27 fields)");
+    AnsiConsole.MarkupLine("  T1.2  Producer Avro Large (106 fields)");
+    AnsiConsole.MarkupLine("  T1.3  Producer JSON Small (27 fields)");
+    AnsiConsole.MarkupLine("  T1.4  Producer JSON Large (106 fields)");
     AnsiConsole.MarkupLine("  T2.1  Consumer Avro Small");
     AnsiConsole.MarkupLine("  T2.2  Consumer Avro Large");
     AnsiConsole.MarkupLine("  T2.3  Consumer JSON Small");

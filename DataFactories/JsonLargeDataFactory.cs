@@ -148,7 +148,15 @@ public class JsonLargeDataFactory : ITestDataFactory<FreightDboTblLoads>
             __cdc_changedby_user = "cdc_service",
             __cdc_integ_key = "100001",
             __cdc_integ_tstamp = "2024-01-15T10:30:00.000Z",
-            __cdc_op_val = 1
+            __cdc_op_val = 1,
+            __test_seq = 0,
+            __test_ts = ""
         };
+    }
+
+    public void SetMessageHeader(FreightDboTblLoads record, int sequenceNumber, string timestamp)
+    {
+        record.__test_seq = sequenceNumber;
+        record.__test_ts = timestamp;
     }
 }

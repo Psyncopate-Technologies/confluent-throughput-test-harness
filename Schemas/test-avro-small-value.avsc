@@ -26,6 +26,8 @@
     { "name": "RoadMiles", "type": ["null", "int"], "default": null },
     { "name": "rowguid", "type": { "type": "string", "logicalType": "char", "maxLength": 36 }, "default": "" },
     { "name": "__cdc_integ_key", "type": { "type": "string", "logicalType": "varchar", "maxLength": 45 }, "default": "" },
-    { "name": "__cdc_op_val", "type": "int", "default": 0 }
+    { "name": "__cdc_op_val", "type": "int", "default": 0 },
+    { "name": "__test_seq", "type": "int", "default": 0 },
+    { "name": "__test_ts", "type": "string", "default": "" }
   ]
 }

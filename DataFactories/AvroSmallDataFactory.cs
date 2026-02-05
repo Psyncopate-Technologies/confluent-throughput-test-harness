@@ -52,7 +52,15 @@ public class AvroSmallDataFactory : ITestDataFactory<GenericRecord>
         record.Add("rowguid", Guid.NewGuid().ToString("D").Substring(0, 36));
         record.Add("__cdc_integ_key", "100001");
         record.Add("__cdc_op_val", 1);
+        record.Add("__test_seq", 0);
+        record.Add("__test_ts", "");
 
         return record;
+    }
+
+    public void SetMessageHeader(GenericRecord record, int sequenceNumber, string timestamp)
+    {
+        record.Add("__test_seq", sequenceNumber);
+        record.Add("__test_ts", timestamp);
     }
 }

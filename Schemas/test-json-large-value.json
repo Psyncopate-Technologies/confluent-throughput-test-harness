@@ -130,7 +130,9 @@
     "__cdc_changedby_user": { "type": "string", "maxLength": 45 },
     "__cdc_integ_key": { "type": "string", "maxLength": 45 },
     "__cdc_integ_tstamp": { "type": "string", "maxLength": 50 },
-    "__cdc_op_val": { "type": "integer" }
+    "__cdc_op_val": { "type": "integer" },
+    "__test_seq": { "type": "integer" },
+    "__test_ts": { "type": "string" }
   },
-  "required": ["PONumber", "rowguid", "__cdc_cap_tstamp", "__cdc_changedby_user", "__cdc_integ_key", "__cdc_integ_tstamp", "__cdc_op_val"]
+  "required": ["PONumber", "rowguid", "__cdc_cap_tstamp", "__cdc_changedby_user", "__cdc_integ_key", "__cdc_integ_tstamp", "__cdc_op_val", "__test_seq", "__test_ts"]
 }

@@ -45,7 +45,15 @@ public class JsonSmallDataFactory : ITestDataFactory<FreightDboTblLoadsSmall>
             RoadMiles = 487,
             rowguid = Guid.NewGuid().ToString("D").Substring(0, 36),
             __cdc_integ_key = "100001",
-            __cdc_op_val = 1
+            __cdc_op_val = 1,
+            __test_seq = 0,
+            __test_ts = ""
         };
+    }
+
+    public void SetMessageHeader(FreightDboTblLoadsSmall record, int sequenceNumber, string timestamp)
+    {
+        record.__test_seq = sequenceNumber;
+        record.__test_ts = timestamp;
     }
 }

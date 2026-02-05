@@ -31,6 +31,7 @@ public class SchemaRegistrySettings
 public class TestSettings
 {
     public int MessageCount { get; set; } = 100_000;
+    public int? DurationMinutes { get; set; }
     public int ProducerRuns { get; set; } = 3;
     public int ConsumerRuns { get; set; } = 5;
     public string TopicPrefix { get; set; } = "test-";

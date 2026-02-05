@@ -121,12 +121,19 @@ public class ConsumerTestRunner
     /// <summary>
     /// Core consume loop shared by both Avro and JSON paths.
     ///
-    /// Subscribes to the test topic and polls messages until the target count is
-    /// reached. Uses a 5-second timeout per Consume() call -- if no message arrives
-    /// within that window, the run is aborted (likely means the topic has fewer
-    /// messages than expected). Partition EOF events are skipped (they are informational,
-    /// not errors). ConsumeExceptions are counted as errors; if errors exceed 100, the
-    /// run is aborted to prevent infinite error loops.
+    /// Subscribes to the test topic and polls messages until the termination condition
+    /// is met. Supports two modes:
+    ///   Count-based: consume until messagesConsumed reaches test.MessageCount.
+    ///   Duration-based: consume until elapsed time reaches test.Duration.
+    ///
+    /// Uses a 5-second timeout per Consume() call. In count mode, a timeout aborts
+    /// the run (likely means the topic has fewer messages than expected). In duration
+    /// mode, timeouts are expected when the topic is temporarily drained and the loop
+    /// continues until the time limit expires.
+    ///
+    /// Partition EOF events are skipped (they are informational, not errors).
+    /// ConsumeExceptions are counted as errors; if errors exceed 100, the run is
+    /// aborted to prevent infinite error loops.
     ///
     /// The getBytesConsumed delegate returns the running total from the
     /// ByteCountingAsyncDeserializer wrapper, which captures raw byte sizes before
@@ -144,10 +151,12 @@ public class ConsumerTestRunner
         var messagesConsumed = 0;
         var errors = 0;
         var timeout = TimeSpan.FromSeconds(5);
+        var isDurationMode = test.Duration.HasValue;
 
         var sw = Stopwatch.StartNew();
 
-        while (messagesConsumed < test.MessageCount)
+        // Unified loop: count-based checks message count, duration-based checks elapsed time
+        while (isDurationMode ? sw.Elapsed < test.Duration!.Value : messagesConsumed < test.MessageCount)
         {
             try
             {
@@ -156,8 +165,13 @@ public class ConsumerTestRunner
                 // Null result means the timeout elapsed with no message available
                 if (result == null)
                 {
-                    Console.WriteLine($"  [WARNING] Timeout waiting for messages at {messagesConsumed}/{test.MessageCount}");
-                    break;
+                    if (!isDurationMode)
+                    {
+                        Console.WriteLine($"  [WARNING] Timeout waiting for messages at {messagesConsumed}/{test.MessageCount}");
+                        break;
+                    }
+                    // In duration mode, keep trying until time expires
+                    continue;
                 }
 
                 // Partition EOF is an informational event (not a real message), skip it.

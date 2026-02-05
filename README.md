@@ -4,7 +4,9 @@ A .NET console application that benchmarks **Avro vs JSON** serialization throug
 
 ## Schemas
 
-Both value schemas are derived from a production freight CDC (`tblloads`) table. The small schema is a 25-field subset of the full 104-field large schema, covering a representative mix of data types: integers, strings (varchar/char), booleans, timestamps, and decimals. All message keys are integers.
+Both value schemas are derived from a production freight CDC (`tblloads`) table. The small schema is a 27-field subset of the full 106-field large schema, covering a representative mix of data types: integers, strings (varchar/char), booleans, timestamps, and decimals. All message keys are integers.
+
+Each schema includes two test header fields (`__test_seq` and `__test_ts`) embedded in the value payload. These are stamped with a unique sequence number and ISO timestamp before every `Produce()` call, ensuring each message has unique content and proving the serializer performs real serialization work on every message.
 
 Each schema has both an Avro (`.avsc`) and a JSON Schema (`.json`) variant in the `Schemas/` directory, named to match their Schema Registry subject:
 
@@ -12,10 +14,10 @@ Each schema has both an Avro (`.avsc`) and a JSON Schema (`.json`) variant in th
 
 | File | SR Subject | Topic | Fields |
 |------|------------|-------|--------|
-| `test-avro-small-value.avsc` | `test-avro-small-value` | `test-avro-small` | 25 |
-| `test-avro-large-value.avsc` | `test-avro-large-value` | `test-avro-large` | 104 |
-| `test-json-small-value.json` | `test-json-small-value` | `test-json-small` | 25 |
-| `test-json-large-value.json` | `test-json-large-value` | `test-json-large` | 104 |
+| `test-avro-small-value.avsc` | `test-avro-small-value` | `test-avro-small` | 27 |
+| `test-avro-large-value.avsc` | `test-avro-large-value` | `test-avro-large` | 106 |
+| `test-json-small-value.json` | `test-json-small-value` | `test-json-small` | 27 |
+| `test-json-large-value.json` | `test-json-large-value` | `test-json-large` | 106 |
 
 ### Key Schemas
 
@@ -26,25 +28,30 @@ Each schema has both an Avro (`.avsc`) and a JSON Schema (`.json`) variant in th
 
 ## Test Matrix
 
-The harness runs 8 tests organized into producer and consumer groups. Each test produces or consumes **100,000 messages** (configurable) using a single identical record to isolate serialization overhead from object creation. Message keys are sequential integers (1, 2, 3, ...).
+The harness runs 8 tests organized into producer and consumer groups. It supports two execution modes:
+
+- **Count-based (default)**: Each test produces or consumes a fixed number of messages (default 100,000).
+- **Duration-based**: Each test runs for a specified number of minutes (e.g., `--duration 10`), producing or consuming as many messages as possible within that time window.
+
+Each message gets a unique `__test_seq` (sequence number) and `__test_ts` (ISO timestamp) stamped into the value payload before every `Produce()` call, guaranteeing that the serializer performs real work on every message. Message keys are sequential integers (1, 2, 3, ...).
 
 ### Producer Tests (T1.x)
 
 | Test | Format | Payload | Topic | Runs |
 |------|--------|---------|-------|------|
-| T1.1 | Avro | Small (25 fields) | `test-avro-small` | 3 |
-| T1.2 | Avro | Large (104 fields) | `test-avro-large` | 3 |
-| T1.3 | JSON | Small (25 fields) | `test-json-small` | 3 |
-| T1.4 | JSON | Large (104 fields) | `test-json-large` | 3 |
+| T1.1 | Avro | Small (27 fields) | `test-avro-small` | 3 |
+| T1.2 | Avro | Large (106 fields) | `test-avro-large` | 3 |
+| T1.3 | JSON | Small (27 fields) | `test-json-small` | 3 |
+| T1.4 | JSON | Large (106 fields) | `test-json-large` | 3 |
 
 ### Consumer Tests (T2.x)
 
 | Test | Format | Payload | Topic | Runs |
 |------|--------|---------|-------|------|
-| T2.1 | Avro | Small (25 fields) | `test-avro-small` | 5 |
-| T2.2 | Avro | Large (104 fields) | `test-avro-large` | 5 |
-| T2.3 | JSON | Small (25 fields) | `test-json-small` | 5 |
-| T2.4 | JSON | Large (104 fields) | `test-json-large` | 5 |
+| T2.1 | Avro | Small (27 fields) | `test-avro-small` | 5 |
+| T2.2 | Avro | Large (106 fields) | `test-avro-large` | 5 |
+| T2.3 | JSON | Small (27 fields) | `test-json-small` | 5 |
+| T2.4 | JSON | Large (106 fields) | `test-json-large` | 5 |
 
 Consumer tests read from the topics populated by the producer tests. Each consumer run uses a unique consumer group ID to ensure it reads from offset 0.
 
@@ -233,7 +240,8 @@ Create `appsettings.Development.json` in the project root:
 | `Kafka` | `CompressionType` | `Lz4` | Producer compression (`None`, `Gzip`, `Snappy`, `Lz4`, `Zstd`) |
 | `SchemaRegistry` | `Url` | -- | Schema Registry endpoint URL |
 | `SchemaRegistry` | `BasicAuthUserInfo` | -- | `API_KEY:API_SECRET` format |
-| `Test` | `MessageCount` | `100000` | Messages per test run |
+| `Test` | `MessageCount` | `100000` | Messages per test run (count mode) |
+| `Test` | `DurationMinutes` | `null` | Minutes per test run (duration mode, overrides MessageCount) |
 | `Test` | `ProducerRuns` | `3` | Number of runs per producer test |
 | `Test` | `ConsumerRuns` | `5` | Number of runs per consumer test |
 | `Test` | `AvroSmallTopic` | `test-avro-small` | Topic for small Avro payloads |
@@ -248,17 +256,20 @@ Create `appsettings.Development.json` in the project root:
 dotnet restore
 dotnet build
 
-# Run all tests (producer tests first, then consumer tests)
+# Run all tests in count mode (default: 100K messages per run)
 dotnet run
 
-# Run only producer tests
-dotnet run -- --producer-only
+# Run all tests in duration mode (10 minutes per run)
+dotnet run -- --duration 10
+
+# Run only producer tests for 15 minutes each
+dotnet run -- --producer-only --duration 15
 
 # Run only consumer tests (topics must already contain messages)
 dotnet run -- --consumer-only
 
-# Run a specific test
-dotnet run -- --test T1.2
+# Run a specific test for 20 minutes
+dotnet run -- --test T1.2 --duration 20
 
 # Show help
 dotnet run -- --help
@@ -268,10 +279,10 @@ dotnet run -- --help
 
 1. The application loads configuration from `appsettings.json`, `appsettings.Development.json`, and environment variables.
 2. Both Avro schemas are parsed from the `Schemas/` directory. Custom logical types (`varchar`, `char`) are registered to handle the freight schema.
-3. CLI arguments are parsed to determine which tests to run.
-4. **Producer tests (T1.1--T1.4)** run first, each producing 100K messages across multiple runs. Messages are sent using `Produce()` (fire-and-forget with delivery handler) to avoid `Task` allocation overhead at high volume. Each message key is the ordinal message number (1, 2, 3, ...).
-5. **Consumer tests (T2.1--T2.4)** run next, each consuming messages from the topics populated in step 4. Each run uses a unique consumer group (`throughput-test-{TestId}-run-{N}-{guid}`) to read from offset 0.
-6. A formatted results table is printed to the console.
+3. CLI arguments are parsed to determine which tests to run and whether to use count-based or duration-based mode (`--duration N`).
+4. **Producer tests (T1.1--T1.4)** run first. In count mode, each run produces a fixed number of messages. In duration mode, each run produces continuously for the specified time. Before every `Produce()` call, the record's `__test_seq` and `__test_ts` fields are updated with a unique sequence number and ISO timestamp, ensuring the serializer serializes fresh data each time. Messages are sent using `Produce()` (fire-and-forget with delivery handler) to avoid `Task` allocation overhead at high volume.
+5. **Consumer tests (T2.1--T2.4)** run next, each consuming messages from the topics populated in step 4. In count mode, each run consumes a fixed number of messages. In duration mode, each run consumes continuously for the specified time. Each run uses a unique consumer group (`throughput-test-{TestId}-run-{N}-{guid}`) to read from offset 0.
+6. A formatted results table is printed to the console (including actual message count per run).
 7. Results are exported to a timestamped CSV file in `bin/Debug/net9.0/results/`.
 
 ### Test Output
@@ -292,10 +303,10 @@ confluent-throughput-test-harness/
 ├── appsettings.json                    # Template config (committed)
 ├── appsettings.Development.json        # Real credentials (gitignored)
 ├── Schemas/
-│   ├── test-avro-small-value.avsc      # Small Avro schema (25 fields)
-│   ├── test-avro-large-value.avsc      # Large Avro schema (104 fields)
-│   ├── test-json-small-value.json      # Small JSON schema (25 fields)
-│   ├── test-json-large-value.json      # Large JSON schema (104 fields)
+│   ├── test-avro-small-value.avsc      # Small Avro schema (27 fields)
+│   ├── test-avro-large-value.avsc      # Large Avro schema (106 fields)
+│   ├── test-json-small-value.json      # Small JSON schema (27 fields)
+│   ├── test-json-large-value.json      # Large JSON schema (106 fields)
 │   ├── test-avro-key.avsc             # Avro key schema (int)
 │   └── test-json-key.json             # JSON key schema (integer)
 ├── Config/
@@ -304,14 +315,14 @@ confluent-throughput-test-harness/
 │   ├── VarcharLogicalType.cs           # Custom Avro logical type for varchar
 │   └── CharLogicalType.cs             # Custom Avro logical type for char
 ├── Models/
-│   ├── FreightDboTblLoadsSmall.cs      # JSON POCO for small payload (25 fields)
-│   └── FreightDboTblLoads.cs           # JSON POCO for large payload (104 fields)
+│   ├── FreightDboTblLoadsSmall.cs      # JSON POCO for small payload (27 fields)
+│   └── FreightDboTblLoads.cs           # JSON POCO for large payload (106 fields)
 ├── DataFactories/
 │   ├── ITestDataFactory.cs             # Factory interface
-│   ├── AvroSmallDataFactory.cs         # GenericRecord builder (25 fields)
-│   ├── AvroLargeDataFactory.cs         # GenericRecord builder (104 fields)
-│   ├── JsonSmallDataFactory.cs         # POCO builder (25 fields)
-│   └── JsonLargeDataFactory.cs         # POCO builder (104 fields)
+│   ├── AvroSmallDataFactory.cs         # GenericRecord builder (27 fields)
+│   ├── AvroLargeDataFactory.cs         # GenericRecord builder (106 fields)
+│   ├── JsonSmallDataFactory.cs         # POCO builder (27 fields)
+│   └── JsonLargeDataFactory.cs         # POCO builder (106 fields)
 ├── Tests/
 │   ├── TestDefinition.cs               # Test IDs, types, and configuration
 │   ├── TestResult.cs                   # Per-run metrics
@@ -335,5 +346,6 @@ confluent-throughput-test-harness/
 - **Throughput-optimized producer defaults**: `acks=1` (Leader), `linger.ms=100`, `batch.size=1000000` (1 MB), and LZ4 compression maximize batching and reduce round-trips to the broker.
 - **Pre-registered schemas**: All 8 schemas (4 value + 4 key) are registered ahead of time. Serializers use `AutoRegisterSchemas = false` and `UseLatestVersion = true` to look up schemas by subject at runtime.
 - **Integer keys**: All messages use sequential integer keys (1, 2, 3, ...) serialized with Avro (`AvroSerializer<int>`) for Avro topics or the default `Serializers.Int32` for JSON topics.
-- **Single record per test**: One record is created and sent 100K times to isolate serialization and network throughput from object construction overhead.
+- **Per-message uniqueness**: Each message gets a unique `__test_seq` (sequence number) and `__test_ts` (ISO timestamp) stamped into the value before every `Produce()`. This proves the serializer is doing real work on every message, not serving a cached serialization result. One record template is created and mutated in-place to avoid object construction overhead.
+- **Dual execution modes**: Count-based mode (default) produces/consumes a fixed number of messages for quick benchmarking. Duration-based mode (`--duration N`) runs each test for N minutes, capturing sustained throughput over longer periods (e.g., 10, 15, or 20 minutes). Both modes coexist and can be selected via CLI or config.
 - **Unique consumer group per run**: Each consumer run creates a group ID like `throughput-test-T2.1-run-1-<guid>` so every run reads the full topic from the beginning.
