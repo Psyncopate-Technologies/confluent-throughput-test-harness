@@ -15,7 +15,7 @@ public class AvroLargeDataFactory : ITestDataFactory<GenericRecord>
     public GenericRecord CreateRecord()
     {
         var record = new GenericRecord(_schema);
-        var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        var now = DateTime.UtcNow;
         var guid = Guid.NewGuid().ToString();
 
         record.Add("Id_", 100001);

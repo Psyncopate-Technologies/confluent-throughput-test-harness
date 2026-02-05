@@ -1,6 +1,8 @@
 using Avro;
+using Avro.Util;
 using Microsoft.Extensions.Configuration;
 using ConfluentThroughputTestHarness.Config;
+using ConfluentThroughputTestHarness.LogicalTypes;
 using ConfluentThroughputTestHarness.Reporting;
 using ConfluentThroughputTestHarness.Runners;
 using ConfluentThroughputTestHarness.Tests;
@@ -38,6 +40,10 @@ if (helpRequested)
     PrintHelp();
     return;
 }
+
+// ── Register Custom Logical Types ────────────────────────────────────
+LogicalTypeFactory.Instance.Register(new VarcharLogicalType());
+LogicalTypeFactory.Instance.Register(new CharLogicalType());
 
 // ── Load Schemas ─────────────────────────────────────────────────────
 var schemasDir = Path.Combine(AppContext.BaseDirectory, "Schemas");

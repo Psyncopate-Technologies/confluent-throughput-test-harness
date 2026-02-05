@@ -2,6 +2,7 @@ using System.Diagnostics;
 using Avro;
 using Avro.Generic;
 using Confluent.Kafka;
+using Confluent.Kafka.SyncOverAsync;
 using Confluent.SchemaRegistry;
 using Confluent.SchemaRegistry.Serdes;
 using ConfluentThroughputTestHarness.Config;
@@ -54,8 +55,13 @@ public class ProducerTestRunner
         var schemaRegistryConfig = BuildSchemaRegistryConfig();
 
         using var schemaRegistry = new CachedSchemaRegistryClient(schemaRegistryConfig);
+        var avroSerializerConfig = new AvroSerializerConfig
+        {
+            AutoRegisterSchemas = false,
+            UseLatestVersion = true
+        };
         using var producer = new ProducerBuilder<string, GenericRecord>(producerConfig)
-            .SetValueSerializer(new AvroSerializer<GenericRecord>(schemaRegistry))
+            .SetValueSerializer(new AvroSerializer<GenericRecord>(schemaRegistry, avroSerializerConfig).AsSyncOverAsync())
             .Build();
 
         using var monitor = new ResourceMonitor();
@@ -132,8 +138,13 @@ public class ProducerTestRunner
     {
         var record = factory.CreateRecord();
 
+        var jsonSerializerConfig = new JsonSerializerConfig
+        {
+            AutoRegisterSchemas = false,
+            UseLatestVersion = true
+        };
         using var producer = new ProducerBuilder<string, T>(producerConfig)
-            .SetValueSerializer(new JsonSerializer<T>(schemaRegistry))
+            .SetValueSerializer(new JsonSerializer<T>(schemaRegistry, jsonSerializerConfig).AsSyncOverAsync())
             .Build();
 
         using var monitor = new ResourceMonitor();

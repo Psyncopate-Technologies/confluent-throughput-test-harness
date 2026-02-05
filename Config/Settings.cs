@@ -23,9 +23,9 @@ public class TestSettings
     public int MessageCount { get; set; } = 100_000;
     public int ProducerRuns { get; set; } = 3;
     public int ConsumerRuns { get; set; } = 5;
-    public string TopicPrefix { get; set; } = "throughput-test";
-    public string AvroSmallTopic { get; set; } = "throughput-test-avro-small";
-    public string AvroLargeTopic { get; set; } = "throughput-test-avro-large";
-    public string JsonSmallTopic { get; set; } = "throughput-test-json-small";
-    public string JsonLargeTopic { get; set; } = "throughput-test-json-large";
+    public string TopicPrefix { get; set; } = "test-";
+    public string AvroSmallTopic { get; set; } = "test-avro-small";
+    public string AvroLargeTopic { get; set; } = "test-avro-large";
+    public string JsonSmallTopic { get; set; } = "test-json-small";
+    public string JsonLargeTopic { get; set; } = "test-json-large";
 }

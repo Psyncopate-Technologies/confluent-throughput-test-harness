@@ -15,14 +15,14 @@ public class AvroSmallDataFactory : ITestDataFactory<GenericRecord>
     public GenericRecord CreateRecord()
     {
         var record = new GenericRecord(_schema);
-        var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        var nowMicros = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() * 1000;
+        var now = DateTime.UtcNow;
         var guid = Guid.NewGuid().ToString();
 
-        // UUID fields
-        record.Add("Guid1", guid);
-        record.Add("Guid1N", guid);
-        record.Add("Guid1NV", guid);
+        // UUID fields - uuid logicalType maps to Guid
+        var guidVal = Guid.NewGuid();
+        record.Add("Guid1", guidVal);
+        record.Add("Guid1N", guidVal);
+        record.Add("Guid1NV", guidVal);
 
         // Boolean fields
         record.Add("Bool1", true);
@@ -77,14 +77,14 @@ public class AvroSmallDataFactory : ITestDataFactory<GenericRecord>
         record.Add("DTUTCNV", now);
 
         record.Add("DTUTCMillis", now);
-        record.Add("DTUTCMicros", nowMicros);
+        record.Add("DTUTCMicros", now);
 
         record.Add("DTLocal", now);
         record.Add("DTLocalN", now);
         record.Add("DTLocalNV", now);
 
         record.Add("DTLocalMillis", now);
-        record.Add("DTLocalMicros", nowMicros);
+        record.Add("DTLocalMicros", now);
 
         record.Add("DTOUTC1", now);
         record.Add("DTOUTC1N", now);
