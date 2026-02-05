@@ -212,9 +212,10 @@ Create `appsettings.Development.json` in the project root:
 | `Kafka` | `SaslMechanism` | `Plain` | SASL mechanism |
 | `Kafka` | `SaslUsername` | -- | Kafka API key |
 | `Kafka` | `SaslPassword` | -- | Kafka API secret |
-| `Kafka` | `Acks` | `All` | Producer acknowledgment level |
-| `Kafka` | `LingerMs` | `5` | Producer linger time in milliseconds |
+| `Kafka` | `Acks` | `Leader` | Producer acknowledgment level (`All` or `Leader`) |
+| `Kafka` | `LingerMs` | `100` | Producer linger time in milliseconds |
 | `Kafka` | `BatchSize` | `1000000` | Producer batch size in bytes |
+| `Kafka` | `CompressionType` | `Lz4` | Producer compression (`None`, `Gzip`, `Snappy`, `Lz4`, `Zstd`) |
 | `SchemaRegistry` | `Url` | -- | Schema Registry endpoint URL |
 | `SchemaRegistry` | `BasicAuthUserInfo` | -- | `API_KEY:API_SECRET` format |
 | `Test` | `MessageCount` | `100000` | Messages per test run |
@@ -316,6 +317,7 @@ confluent-throughput-test-harness/
 - **GenericRecord for Avro**: The freight schema uses custom logical types (`varchar`, `char`) that are not supported by Avro code generation. `GenericRecord` with `Schema.Parse()` and custom logical type registration handles this cleanly.
 - **POCO classes for JSON**: The `Confluent.SchemaRegistry.Serdes.Json` serializer works with plain C# classes annotated with `System.Text.Json` attributes.
 - **`Produce()` over `ProduceAsync()`**: The synchronous fire-and-forget `Produce()` with a delivery callback avoids `Task` allocation GC pressure at high message volumes, giving more accurate throughput numbers.
+- **Throughput-optimized producer defaults**: `acks=1` (Leader), `linger.ms=100`, `batch.size=1000000` (1 MB), and LZ4 compression maximize batching and reduce round-trips to the broker.
 - **Pre-registered schemas**: All 8 schemas (4 value + 4 key) are registered ahead of time. Serializers use `AutoRegisterSchemas = false` and `UseLatestVersion = true` to look up schemas by subject at runtime.
 - **Integer keys**: All messages use sequential integer keys (1, 2, 3, ...) serialized with Avro (`AvroSerializer<int>`) for Avro topics or the default `Serializers.Int32` for JSON topics.
 - **Single record per test**: One record is created and sent 100K times to isolate serialization and network throughput from object construction overhead.
