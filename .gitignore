@@ -24,3 +24,7 @@ credentials/
 ## Test output
 results/
 *.csv
+
+## Source artifacts
+*.zip
+Schemas/TestAvroDataTypesMsg.avsc
