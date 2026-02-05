@@ -54,6 +54,12 @@ public class TestDefinition
             ? TimeSpan.FromMinutes(settings.DurationMinutes.Value)
             : null;
 
+        // In duration mode, default to 1 run per test since each run already
+        // covers a sustained period (e.g., 10 or 15 minutes). In count mode,
+        // use the configured ProducerRuns/ConsumerRuns (default 3/5).
+        var producerRuns = duration.HasValue ? 1 : settings.ProducerRuns;
+        var consumerRuns = duration.HasValue ? 1 : settings.ConsumerRuns;
+
         return
         [
             // ── Producer tests (T1.x) ──────────────────────────────────
@@ -65,7 +71,7 @@ public class TestDefinition
                 Type = TestType.Producer, Format = SerializationFormat.Avro,
                 Size = PayloadSize.Small, Topic = settings.AvroSmallTopic,
                 MessageCount = settings.MessageCount, Duration = duration,
-                Runs = settings.ProducerRuns
+                Runs = producerRuns
             },
             new()   // T1.2: Produce large Avro messages
             {
@@ -73,7 +79,7 @@ public class TestDefinition
                 Type = TestType.Producer, Format = SerializationFormat.Avro,
                 Size = PayloadSize.Large, Topic = settings.AvroLargeTopic,
                 MessageCount = settings.MessageCount, Duration = duration,
-                Runs = settings.ProducerRuns
+                Runs = producerRuns
             },
             new()   // T1.3: Produce small JSON messages
             {
@@ -81,7 +87,7 @@ public class TestDefinition
                 Type = TestType.Producer, Format = SerializationFormat.Json,
                 Size = PayloadSize.Small, Topic = settings.JsonSmallTopic,
                 MessageCount = settings.MessageCount, Duration = duration,
-                Runs = settings.ProducerRuns
+                Runs = producerRuns
             },
             new()   // T1.4: Produce large JSON messages
             {
@@ -89,7 +95,7 @@ public class TestDefinition
                 Type = TestType.Producer, Format = SerializationFormat.Json,
                 Size = PayloadSize.Large, Topic = settings.JsonLargeTopic,
                 MessageCount = settings.MessageCount, Duration = duration,
-                Runs = settings.ProducerRuns
+                Runs = producerRuns
             },
 
             // ── Consumer tests (T2.x) ──────────────────────────────────
@@ -102,7 +108,7 @@ public class TestDefinition
                 Type = TestType.Consumer, Format = SerializationFormat.Avro,
                 Size = PayloadSize.Small, Topic = settings.AvroSmallTopic,
                 MessageCount = settings.MessageCount, Duration = duration,
-                Runs = settings.ConsumerRuns
+                Runs = consumerRuns
             },
             new()   // T2.2: Consume large Avro messages
             {
@@ -110,7 +116,7 @@ public class TestDefinition
                 Type = TestType.Consumer, Format = SerializationFormat.Avro,
                 Size = PayloadSize.Large, Topic = settings.AvroLargeTopic,
                 MessageCount = settings.MessageCount, Duration = duration,
-                Runs = settings.ConsumerRuns
+                Runs = consumerRuns
             },
             new()   // T2.3: Consume small JSON messages
             {
@@ -118,7 +124,7 @@ public class TestDefinition
                 Type = TestType.Consumer, Format = SerializationFormat.Json,
                 Size = PayloadSize.Small, Topic = settings.JsonSmallTopic,
                 MessageCount = settings.MessageCount, Duration = duration,
-                Runs = settings.ConsumerRuns
+                Runs = consumerRuns
             },
             new()   // T2.4: Consume large JSON messages
             {
@@ -126,7 +132,7 @@ public class TestDefinition
                 Type = TestType.Consumer, Format = SerializationFormat.Json,
                 Size = PayloadSize.Large, Topic = settings.JsonLargeTopic,
                 MessageCount = settings.MessageCount, Duration = duration,
-                Runs = settings.ConsumerRuns
+                Runs = consumerRuns
             }
         ];
     }
