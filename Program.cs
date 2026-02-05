@@ -1,3 +1,13 @@
+// ────────────────────────────────────────────────────────────────────
+// Program.cs
+// Created:  2026-02-05
+// Author:   Ayu Admassu
+// Purpose:  Main entry point and orchestrator for the Kafka throughput
+//           test harness. Loads configuration, parses CLI arguments,
+//           registers custom Avro logical types, and executes producer
+//           and consumer benchmark tests in sequence.
+// ────────────────────────────────────────────────────────────────────
+
 using Avro;
 using Avro.Util;
 using Microsoft.Extensions.Configuration;

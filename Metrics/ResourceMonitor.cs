@@ -1,3 +1,12 @@
+// ────────────────────────────────────────────────────────────────────
+// ResourceMonitor.cs
+// Created:  2026-02-05
+// Author:   Ayu Admassu
+// Purpose:  Background monitor that samples CPU usage and working set
+//           memory every 250ms during a test run, tracking peak values
+//           for benchmark reporting.
+// ────────────────────────────────────────────────────────────────────
+
 using System.Diagnostics;
 
 namespace ConfluentThroughputTestHarness.Metrics;

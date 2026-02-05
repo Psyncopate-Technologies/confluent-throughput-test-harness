@@ -1,3 +1,12 @@
+// ────────────────────────────────────────────────────────────────────
+// ConsoleReporter.cs
+// Created:  2026-02-05
+// Author:   Ayu Admassu
+// Purpose:  Renders benchmark results as formatted Spectre.Console
+//           tables, including per-run detail, per-test averages, and
+//           a summary comparison across all tests.
+// ────────────────────────────────────────────────────────────────────
+
 using ConfluentThroughputTestHarness.Tests;
 using Spectre.Console;
 

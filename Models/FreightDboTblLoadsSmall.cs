@@ -1,3 +1,12 @@
+// ────────────────────────────────────────────────────────────────────
+// FreightDboTblLoadsSmall.cs
+// Created:  2026-02-05
+// Author:   Ayu Admassu
+// Purpose:  JSON-serializable POCO representing the small (25-field)
+//           subset of the freight CDC tblloads schema. Used as the
+//           value type for small JSON producer and consumer tests.
+// ────────────────────────────────────────────────────────────────────
+
 using System.Text.Json.Serialization;
 
 namespace ConfluentThroughputTestHarness.Models;

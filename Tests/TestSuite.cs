@@ -1,3 +1,11 @@
+// ────────────────────────────────────────────────────────────────────
+// TestSuite.cs
+// Created:  2026-02-05
+// Author:   Ayu Admassu
+// Purpose:  Aggregates individual TestResult instances and computes
+//           averaged metrics per test ID for summary reporting.
+// ────────────────────────────────────────────────────────────────────
+
 namespace ConfluentThroughputTestHarness.Tests;
 
 public class TestSuite

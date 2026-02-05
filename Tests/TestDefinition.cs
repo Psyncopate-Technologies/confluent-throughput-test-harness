@@ -1,3 +1,12 @@
+// ────────────────────────────────────────────────────────────────────
+// TestDefinition.cs
+// Created:  2026-02-05
+// Author:   Ayu Admassu
+// Purpose:  Defines the test matrix enums (format, payload size, type)
+//           and the TestDefinition class that maps each test ID to its
+//           topic, serialization format, runs, and message count.
+// ────────────────────────────────────────────────────────────────────
+
 namespace ConfluentThroughputTestHarness.Tests;
 
 public enum SerializationFormat { Avro, Json }

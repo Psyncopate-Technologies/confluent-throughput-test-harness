@@ -1,3 +1,12 @@
+// ────────────────────────────────────────────────────────────────────
+// AvroSmallDataFactory.cs
+// Created:  2026-02-05
+// Author:   Ayu Admassu
+// Purpose:  Builds an Avro GenericRecord populated with sample data
+//           for the small (25-field) freight schema. Used to produce
+//           test messages for the Avro small producer benchmark.
+// ────────────────────────────────────────────────────────────────────
+
 using Avro;
 using Avro.Generic;
 

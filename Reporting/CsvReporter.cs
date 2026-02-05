@@ -1,3 +1,11 @@
+// ────────────────────────────────────────────────────────────────────
+// CsvReporter.cs
+// Created:  2026-02-05
+// Author:   Ayu Admassu
+// Purpose:  Exports benchmark results to a timestamped CSV file with
+//           one row per test run, including all collected metrics.
+// ────────────────────────────────────────────────────────────────────
+
 using ConfluentThroughputTestHarness.Tests;
 
 namespace ConfluentThroughputTestHarness.Reporting;

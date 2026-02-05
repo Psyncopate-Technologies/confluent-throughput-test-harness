@@ -1,3 +1,12 @@
+// ────────────────────────────────────────────────────────────────────
+// TestResult.cs
+// Created:  2026-02-05
+// Author:   Ayu Admassu
+// Purpose:  Data class capturing per-run benchmark metrics including
+//           messages/sec, MB/sec, average latency, peak CPU, peak
+//           memory, and delivery error count.
+// ────────────────────────────────────────────────────────────────────
+
 namespace ConfluentThroughputTestHarness.Tests;
 
 public class TestResult

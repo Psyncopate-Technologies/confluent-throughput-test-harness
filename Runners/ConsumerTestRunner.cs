@@ -1,3 +1,13 @@
+// ────────────────────────────────────────────────────────────────────
+// ConsumerTestRunner.cs
+// Created:  2026-02-05
+// Author:   Ayu Admassu
+// Purpose:  Executes consumer throughput benchmarks for both Avro and
+//           JSON serialization formats. Consumes messages using unique
+//           consumer groups per run and collects timing, byte count,
+//           and resource metrics via ByteCountingDeserializer.
+// ────────────────────────────────────────────────────────────────────
+
 using System.Diagnostics;
 using Avro.Generic;
 using Confluent.Kafka;

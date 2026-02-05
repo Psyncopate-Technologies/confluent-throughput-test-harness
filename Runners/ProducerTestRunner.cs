@@ -1,3 +1,13 @@
+// ────────────────────────────────────────────────────────────────────
+// ProducerTestRunner.cs
+// Created:  2026-02-05
+// Author:   Ayu Admassu
+// Purpose:  Executes producer throughput benchmarks for both Avro and
+//           JSON serialization formats. Produces messages using the
+//           fire-and-forget Produce() pattern with delivery handlers
+//           and collects timing, byte count, and resource metrics.
+// ────────────────────────────────────────────────────────────────────
+
 using System.Diagnostics;
 using Avro;
 using Avro.Generic;

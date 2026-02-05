@@ -1,3 +1,13 @@
+// ────────────────────────────────────────────────────────────────────
+// AvroLargeDataFactory.cs
+// Created:  2026-02-05
+// Author:   Ayu Admassu
+// Purpose:  Builds an Avro GenericRecord populated with sample data
+//           for the large (104-field) freight CDC tblloads schema.
+//           Used to produce test messages for the Avro large producer
+//           benchmark.
+// ────────────────────────────────────────────────────────────────────
+
 using Avro;
 using Avro.Generic;
 

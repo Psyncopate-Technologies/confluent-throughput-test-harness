@@ -1,3 +1,12 @@
+// ────────────────────────────────────────────────────────────────────
+// CharLogicalType.cs
+// Created:  2026-02-05
+// Author:   Ayu Admassu
+// Purpose:  Custom Avro logical type handler for the "char" logical
+//           type used in the freight CDC schema. Maps char fields
+//           to .NET strings during serialization and deserialization.
+// ────────────────────────────────────────────────────────────────────
+
 using Avro;
 using Avro.Util;
 

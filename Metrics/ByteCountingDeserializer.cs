@@ -1,3 +1,12 @@
+// ────────────────────────────────────────────────────────────────────
+// ByteCountingDeserializer.cs
+// Created:  2026-02-05
+// Author:   Ayu Admassu
+// Purpose:  Wraps an IAsyncDeserializer<T> to capture the raw byte
+//           count of each consumed message before deserialization,
+//           enabling accurate MB/sec metrics for consumer benchmarks.
+// ────────────────────────────────────────────────────────────────────
+
 using Confluent.Kafka;
 
 namespace ConfluentThroughputTestHarness.Metrics;

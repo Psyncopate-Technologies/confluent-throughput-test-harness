@@ -1,3 +1,12 @@
+// ────────────────────────────────────────────────────────────────────
+// Settings.cs
+// Created:  2026-02-05
+// Author:   Ayu Admassu
+// Purpose:  Configuration POCO classes for Kafka, Schema Registry,
+//           and test settings. Bound from appsettings.json via the
+//           .NET configuration system.
+// ────────────────────────────────────────────────────────────────────
+
 namespace ConfluentThroughputTestHarness.Config;
 
 public class KafkaSettings

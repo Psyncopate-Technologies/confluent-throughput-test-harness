@@ -1,3 +1,13 @@
+// ────────────────────────────────────────────────────────────────────
+// JsonLargeDataFactory.cs
+// Created:  2026-02-05
+// Author:   Ayu Admassu
+// Purpose:  Builds a FreightDboTblLoads POCO populated with sample
+//           data for the large (104-field) freight CDC JSON schema.
+//           Used to produce test messages for the JSON large producer
+//           benchmark.
+// ────────────────────────────────────────────────────────────────────
+
 using ConfluentThroughputTestHarness.Models;
 
 namespace ConfluentThroughputTestHarness.DataFactories;
