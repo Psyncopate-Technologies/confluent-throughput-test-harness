@@ -134,36 +134,36 @@ All schemas must be pre-registered. The serializers are configured with `AutoReg
 # Value schemas
 confluent schema-registry schema create \
   --subject test-avro-small-value \
-  --schema Schemas/freight-small-value.avsc --type avro
+  --schema Schemas/test-avro-small-value.avsc --type avro
 
 confluent schema-registry schema create \
   --subject test-avro-large-value \
-  --schema Schemas/schema-cdc_freight_dbo_tblloads-value-v4.avsc --type avro
+  --schema Schemas/test-avro-large-value.avsc --type avro
 
 confluent schema-registry schema create \
   --subject test-json-small-value \
-  --schema Schemas/freight-small-value.json --type json
+  --schema Schemas/test-json-small-value.json --type json
 
 confluent schema-registry schema create \
   --subject test-json-large-value \
-  --schema Schemas/freight-large-value.json --type json
+  --schema Schemas/test-json-large-value.json --type json
 
 # Key schemas
 confluent schema-registry schema create \
   --subject test-avro-small-key \
-  --schema Schemas/key-avro.avsc --type avro
+  --schema Schemas/test-avro-key.avsc --type avro
 
 confluent schema-registry schema create \
   --subject test-avro-large-key \
-  --schema Schemas/key-avro.avsc --type avro
+  --schema Schemas/test-avro-key.avsc --type avro
 
 confluent schema-registry schema create \
   --subject test-json-small-key \
-  --schema Schemas/key-json.json --type json
+  --schema Schemas/test-json-key.json --type json
 
 confluent schema-registry schema create \
   --subject test-json-large-key \
-  --schema Schemas/key-json.json --type json
+  --schema Schemas/test-json-key.json --type json
 ```
 
 This registers 8 subjects total (4 value + 4 key).
@@ -265,12 +265,12 @@ confluent-throughput-test-harness/
 ├── appsettings.json                    # Template config (committed)
 ├── appsettings.Development.json        # Real credentials (gitignored)
 ├── Schemas/
-│   ├── freight-small-value.avsc        # Small Avro schema (25 fields)
-│   ├── freight-small-value.json        # Small JSON schema (25 fields)
-│   ├── schema-cdc_freight_dbo_tblloads-value-v4.avsc  # Large Avro schema (104 fields)
-│   ├── freight-large-value.json        # Large JSON schema (104 fields)
-│   ├── key-avro.avsc                   # Avro key schema (int)
-│   └── key-json.json                   # JSON key schema (integer)
+│   ├── test-avro-small-value.avsc      # Small Avro schema (25 fields)
+│   ├── test-avro-large-value.avsc      # Large Avro schema (104 fields)
+│   ├── test-json-small-value.json      # Small JSON schema (25 fields)
+│   ├── test-json-large-value.json      # Large JSON schema (104 fields)
+│   ├── test-avro-key.avsc             # Avro key schema (int)
+│   └── test-json-key.json             # JSON key schema (integer)
 ├── Config/
 │   └── Settings.cs                     # KafkaSettings, SchemaRegistrySettings, TestSettings
 ├── LogicalTypes/

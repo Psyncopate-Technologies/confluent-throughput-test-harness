@@ -47,8 +47,8 @@ LogicalTypeFactory.Instance.Register(new CharLogicalType());
 
 // ── Load Schemas ─────────────────────────────────────────────────────
 var schemasDir = Path.Combine(AppContext.BaseDirectory, "Schemas");
-var smallSchemaJson = await File.ReadAllTextAsync(Path.Combine(schemasDir, "freight-small-value.avsc"));
-var largeSchemaJson = await File.ReadAllTextAsync(Path.Combine(schemasDir, "schema-cdc_freight_dbo_tblloads-value-v4.avsc"));
+var smallSchemaJson = await File.ReadAllTextAsync(Path.Combine(schemasDir, "test-avro-small-value.avsc"));
+var largeSchemaJson = await File.ReadAllTextAsync(Path.Combine(schemasDir, "test-avro-large-value.avsc"));
 
 var smallSchema = (RecordSchema)Schema.Parse(smallSchemaJson);
 var largeSchema = (RecordSchema)Schema.Parse(largeSchemaJson);
