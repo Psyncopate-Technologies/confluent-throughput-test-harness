@@ -4,14 +4,25 @@ A .NET console application that benchmarks **Avro vs JSON** serialization throug
 
 ## Schemas
 
-Both schemas are derived from a production freight CDC (`tblloads`) table. The small schema is a 25-field subset of the full 104-field large schema, covering a representative mix of data types: integers, strings (varchar/char), booleans, timestamps, and decimals.
+Both value schemas are derived from a production freight CDC (`tblloads`) table. The small schema is a 25-field subset of the full 104-field large schema, covering a representative mix of data types: integers, strings (varchar/char), booleans, timestamps, and decimals. All message keys are integers.
 
-| Schema | Name | Fields | Description |
-|--------|------|--------|-------------|
-| **Small** | `freight_dbo_tblloads_small` | 25 | Subset of freight loads: int, varchar, bool, timestamp-millis, decimal, char |
-| **Large** | `freight_dbo_tblloads` | 104 | Full CDC freight loads table with all field types |
+Each schema has both an Avro (`.avsc`) and a JSON Schema (`.json`) variant in the `Schemas/` directory, named to match their Schema Registry subject:
 
-Each schema has both Avro (`.avsc`) and JSON Schema (`.json`) variants in the `Schemas/` directory. Key schemas are also provided: Avro `"int"` and JSON `{"type": "integer"}`.
+### Value Schemas
+
+| File | SR Subject | Topic | Fields |
+|------|------------|-------|--------|
+| `test-avro-small-value.avsc` | `test-avro-small-value` | `test-avro-small` | 25 |
+| `test-avro-large-value.avsc` | `test-avro-large-value` | `test-avro-large` | 104 |
+| `test-json-small-value.json` | `test-json-small-value` | `test-json-small` | 25 |
+| `test-json-large-value.json` | `test-json-large-value` | `test-json-large` | 104 |
+
+### Key Schemas
+
+| File | SR Subjects | Type |
+|------|-------------|------|
+| `test-avro-key.avsc` | `test-avro-small-key`, `test-avro-large-key` | Avro `int` |
+| `test-json-key.json` | `test-json-small-key`, `test-json-large-key` | JSON `integer` |
 
 ## Test Matrix
 
