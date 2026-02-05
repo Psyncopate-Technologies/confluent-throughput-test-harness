@@ -19,6 +19,9 @@ using ConfluentThroughputTestHarness.Tests;
 using Spectre.Console;
 
 // ── Configuration ────────────────────────────────────────────────────
+// Build a layered configuration: appsettings.json provides defaults,
+// appsettings.Development.json (gitignored) supplies real Confluent
+// Cloud credentials, and environment variables take highest priority.
 var config = new ConfigurationBuilder()
     .SetBasePath(AppContext.BaseDirectory)
     .AddJsonFile("appsettings.json", optional: false)
@@ -26,6 +29,7 @@ var config = new ConfigurationBuilder()
     .AddEnvironmentVariables()
     .Build();
 
+// Bind each configuration section to its strongly-typed POCO class.
 var kafkaSettings = new KafkaSettings();
 config.GetSection("Kafka").Bind(kafkaSettings);
 
@@ -36,6 +40,11 @@ var testSettings = new TestSettings();
 config.GetSection("Test").Bind(testSettings);
 
 // ── CLI Arguments ────────────────────────────────────────────────────
+// Supported flags:
+//   --producer-only   Run only T1.x producer tests
+//   --consumer-only   Run only T2.x consumer tests
+//   --test <ID>       Run a single test (e.g., T1.1 or T2.3)
+//   --help            Print usage information
 var producerOnly = args.Contains("--producer-only", StringComparer.OrdinalIgnoreCase);
 var consumerOnly = args.Contains("--consumer-only", StringComparer.OrdinalIgnoreCase);
 var helpRequested = args.Contains("--help", StringComparer.OrdinalIgnoreCase);
@@ -52,10 +61,18 @@ if (helpRequested)
 }
 
 // ── Register Custom Logical Types ────────────────────────────────────
+// The freight CDC Avro schemas use custom logical types "varchar" and "char"
+// that are not part of the standard Avro spec. These must be registered with
+// the Avro library before parsing the schemas, otherwise Schema.Parse() will
+// throw an unknown logical type error.
 LogicalTypeFactory.Instance.Register(new VarcharLogicalType());
 LogicalTypeFactory.Instance.Register(new CharLogicalType());
 
 // ── Load Schemas ─────────────────────────────────────────────────────
+// Read and parse the two Avro value schemas from the Schemas/ directory.
+// These are used by ProducerTestRunner to build GenericRecord instances.
+// JSON schemas are not loaded here because the JSON serializer works with
+// POCO classes and resolves schemas from Schema Registry at runtime.
 var schemasDir = Path.Combine(AppContext.BaseDirectory, "Schemas");
 var smallSchemaJson = await File.ReadAllTextAsync(Path.Combine(schemasDir, "test-avro-small-value.avsc"));
 var largeSchemaJson = await File.ReadAllTextAsync(Path.Combine(schemasDir, "test-avro-large-value.avsc"));
@@ -64,6 +81,8 @@ var smallSchema = (RecordSchema)Schema.Parse(smallSchemaJson);
 var largeSchema = (RecordSchema)Schema.Parse(largeSchemaJson);
 
 // ── Build Test Definitions ───────────────────────────────────────────
+// Generate the full 8-test matrix (T1.1-T1.4 producers, T2.1-T2.4 consumers)
+// from TestSettings, then filter based on CLI arguments.
 var allTests = TestDefinition.GetAll(testSettings);
 var testsToRun = allTests.AsEnumerable();
 
@@ -92,10 +111,16 @@ AnsiConsole.MarkupLine($"[grey]Tests to run:[/] {string.Join(", ", testList.Sele
 AnsiConsole.WriteLine();
 
 // ── Execute Tests ────────────────────────────────────────────────────
+// Create the test suite container and both runners. The ProducerTestRunner
+// needs the parsed Avro schemas to build GenericRecords; the ConsumerTestRunner
+// does not because it discovers schemas from Schema Registry during deserialization.
 var suite = new TestSuite { StartedAt = DateTime.UtcNow };
 var producerRunner = new ProducerTestRunner(kafkaSettings, srSettings, smallSchema, largeSchema);
 var consumerRunner = new ConsumerTestRunner(kafkaSettings, srSettings);
 
+// Iterate through each test, executing the configured number of runs.
+// Each run displays a Spectre.Console spinner while in progress, then
+// prints the per-run metrics on completion.
 foreach (var test in testList)
 {
     AnsiConsole.Write(new Rule($"[yellow]{test.Id}[/] {test.Name}").RuleStyle("grey").LeftJustified());
@@ -106,6 +131,7 @@ foreach (var test in testList)
             .Spinner(Spinner.Known.Dots)
             .StartAsync($"Run {run}/{test.Runs}...", async ctx =>
             {
+                // Dispatch to the appropriate runner based on test type
                 TestResult result;
                 if (test.Type == TestType.Producer)
                     result = await producerRunner.RunAsync(test, run);
@@ -114,6 +140,7 @@ foreach (var test in testList)
 
                 suite.AddResult(result);
 
+                // Print per-run summary: msgs/sec, MB/sec, elapsed time, error count
                 AnsiConsole.MarkupLine(
                     $"  Run {run}: [green]{result.MessagesPerSecond:N0} msgs/sec[/] | " +
                     $"[cyan]{result.MegabytesPerSecond:F2} MB/sec[/] | " +
@@ -128,6 +155,8 @@ foreach (var test in testList)
 suite.CompletedAt = DateTime.UtcNow;
 
 // ── Report Results ───────────────────────────────────────────────────
+// Print the detailed results table and summary comparison to the console,
+// then export all results (including per-test averages) to a timestamped CSV.
 ConsoleReporter.PrintResults(suite);
 
 var csvPath = Path.Combine(AppContext.BaseDirectory, "results",

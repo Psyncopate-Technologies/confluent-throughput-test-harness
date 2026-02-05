@@ -32,6 +32,10 @@ public class ConsumerTestRunner
         _srSettings = srSettings;
     }
 
+    /// <summary>
+    /// Entry point for a single consumer benchmark run.
+    /// Routes to the Avro or JSON code path based on the test definition's format.
+    /// </summary>
     public async Task<TestResult> RunAsync(TestDefinition test, int runNumber)
     {
         return test.Format switch
@@ -42,12 +46,27 @@ public class ConsumerTestRunner
         };
     }
 
+    /// <summary>
+    /// Consumes Avro-serialized messages from the test topic.
+    ///
+    /// Key design points:
+    /// - Keys are deserialized with AvroDeserializer&lt;int&gt; (matching the producer's
+    ///   AvroSerializer&lt;int&gt;), wrapped with .AsSyncOverAsync().
+    /// - Values are deserialized with AvroDeserializer&lt;GenericRecord&gt;, wrapped in a
+    ///   ByteCountingAsyncDeserializer to capture raw message byte sizes before
+    ///   deserialization occurs. This enables accurate MB/sec throughput metrics.
+    /// - Each run gets a unique consumer group ID (with a GUID suffix) to ensure
+    ///   it reads the full topic from offset 0.
+    /// </summary>
     private Task<TestResult> RunAvroAsync(TestDefinition test, int runNumber)
     {
         var consumerConfig = BuildConsumerConfig(test.Id, runNumber);
         var schemaRegistryConfig = BuildSchemaRegistryConfig();
 
         using var schemaRegistry = new CachedSchemaRegistryClient(schemaRegistryConfig);
+
+        // Wrap the Avro value deserializer in ByteCountingAsyncDeserializer to track
+        // the total raw bytes consumed (before deserialization into GenericRecord).
         var avroDeserializer = new AvroDeserializer<GenericRecord>(schemaRegistry);
         var byteCounter = new ByteCountingAsyncDeserializer<GenericRecord>(avroDeserializer);
 
@@ -60,6 +79,10 @@ public class ConsumerTestRunner
         return Task.FromResult(ConsumeMessages(consumer, test, runNumber, () => byteCounter.TotalBytes));
     }
 
+    /// <summary>
+    /// Consumes JSON-serialized messages from the test topic.
+    /// Routes to the generic RunJsonTypedAsync&lt;T&gt; with the appropriate POCO type.
+    /// </summary>
     private Task<TestResult> RunJsonAsync(TestDefinition test, int runNumber)
     {
         if (test.Size == PayloadSize.Small)
@@ -68,6 +91,15 @@ public class ConsumerTestRunner
             return RunJsonTypedAsync<FreightDboTblLoads>(test, runNumber);
     }
 
+    /// <summary>
+    /// Generic JSON consumer benchmark. The type parameter T is the POCO class
+    /// matching the JSON schema.
+    ///
+    /// Key differences from the Avro path:
+    /// - Uses JsonDeserializer&lt;T&gt; (no Schema Registry client needed for deserialization).
+    /// - Keys use the default Deserializers.Int32 (matching the producer's Serializers.Int32).
+    /// - The byte counter wraps JsonDeserializer to track raw bytes before JSON parsing.
+    /// </summary>
     private Task<TestResult> RunJsonTypedAsync<T>(TestDefinition test, int runNumber) where T : class
     {
         var consumerConfig = BuildConsumerConfig(test.Id, runNumber);
@@ -77,6 +109,7 @@ public class ConsumerTestRunner
         var jsonDeserializer = new JsonDeserializer<T>();
         var byteCounter = new ByteCountingAsyncDeserializer<T>(jsonDeserializer);
 
+        // Note: no SetKeyDeserializer call -- the default Deserializers.Int32 handles int keys
         using var consumer = new ConsumerBuilder<int, T>(consumerConfig)
             .SetValueDeserializer(byteCounter.AsSyncOverAsync())
             .SetErrorHandler((_, e) => Console.Error.WriteLine($"Consumer error: {e.Reason}"))
@@ -85,6 +118,20 @@ public class ConsumerTestRunner
         return Task.FromResult(ConsumeMessages(consumer, test, runNumber, () => byteCounter.TotalBytes));
     }
 
+    /// <summary>
+    /// Core consume loop shared by both Avro and JSON paths.
+    ///
+    /// Subscribes to the test topic and polls messages until the target count is
+    /// reached. Uses a 5-second timeout per Consume() call -- if no message arrives
+    /// within that window, the run is aborted (likely means the topic has fewer
+    /// messages than expected). Partition EOF events are skipped (they are informational,
+    /// not errors). ConsumeExceptions are counted as errors; if errors exceed 100, the
+    /// run is aborted to prevent infinite error loops.
+    ///
+    /// The getBytesConsumed delegate returns the running total from the
+    /// ByteCountingAsyncDeserializer wrapper, which captures raw byte sizes before
+    /// deserialization.
+    /// </summary>
     private TestResult ConsumeMessages<TValue>(
         IConsumer<int, TValue> consumer,
         TestDefinition test,
@@ -105,12 +152,16 @@ public class ConsumerTestRunner
             try
             {
                 var result = consumer.Consume(timeout);
+
+                // Null result means the timeout elapsed with no message available
                 if (result == null)
                 {
                     Console.WriteLine($"  [WARNING] Timeout waiting for messages at {messagesConsumed}/{test.MessageCount}");
                     break;
                 }
 
+                // Partition EOF is an informational event (not a real message), skip it.
+                // This fires when the consumer reaches the end of the partition's log.
                 if (result.IsPartitionEOF)
                 {
                     continue;
@@ -130,7 +181,7 @@ public class ConsumerTestRunner
         }
 
         sw.Stop();
-        consumer.Close();
+        consumer.Close();   // Gracefully leave the consumer group
 
         return new TestResult
         {
@@ -146,6 +197,17 @@ public class ConsumerTestRunner
         };
     }
 
+    /// <summary>
+    /// Builds the consumer configuration for a single benchmark run.
+    ///
+    /// Key settings:
+    /// - GroupId includes the test ID, run number, and a GUID to ensure each run
+    ///   gets a brand new consumer group that reads from offset 0 (Earliest).
+    /// - EnablePartitionEof=true so the consume loop can detect when it reaches
+    ///   the end of the topic (fires IsPartitionEOF on the ConsumeResult).
+    /// - FetchMaxBytes=50MB and MaxPartitionFetchBytes=10MB are set high to allow
+    ///   large batches for throughput testing.
+    /// </summary>
     private ConsumerConfig BuildConsumerConfig(string testId, int runNumber) => new()
     {
         BootstrapServers = _kafkaSettings.BootstrapServers,
@@ -162,6 +224,10 @@ public class ConsumerTestRunner
         EnablePartitionEof = true
     };
 
+    /// <summary>
+    /// Builds the Schema Registry client configuration for authenticating
+    /// with Confluent Cloud Schema Registry using API key/secret.
+    /// </summary>
     private SchemaRegistryConfig BuildSchemaRegistryConfig() => new()
     {
         Url = _srSettings.Url,

@@ -9,46 +9,71 @@
 
 namespace ConfluentThroughputTestHarness.Tests;
 
+// ── Enums used to classify each test in the matrix ──────────────────
+
+/// <summary>Avro (binary, schema-aware) vs Json (text, JSON Schema-aware).</summary>
 public enum SerializationFormat { Avro, Json }
+
+/// <summary>Small = 25-field freight subset, Large = full 104-field freight table.</summary>
 public enum PayloadSize { Small, Large }
+
+/// <summary>Producer writes messages to Kafka; Consumer reads them back.</summary>
 public enum TestType { Producer, Consumer }
 
+/// <summary>
+/// Represents a single test in the 8-test benchmark matrix.
+///
+/// The test matrix covers every combination of:
+///   - Direction: Producer (T1.x) or Consumer (T2.x)
+///   - Format:    Avro or JSON
+///   - Size:      Small (25 fields) or Large (104 fields)
+///
+/// Each test targets a specific topic and runs a configurable number of
+/// iterations (default: 3 for producers, 5 for consumers).
+/// </summary>
 public class TestDefinition
 {
-    public string Id { get; init; } = string.Empty;
-    public string Name { get; init; } = string.Empty;
-    public TestType Type { get; init; }
-    public SerializationFormat Format { get; init; }
-    public PayloadSize Size { get; init; }
-    public string Topic { get; init; } = string.Empty;
-    public int MessageCount { get; init; }
-    public int Runs { get; init; }
+    public string Id { get; init; } = string.Empty;           // e.g., "T1.1", "T2.3"
+    public string Name { get; init; } = string.Empty;         // e.g., "Producer Avro Small"
+    public TestType Type { get; init; }                       // Producer or Consumer
+    public SerializationFormat Format { get; init; }          // Avro or Json
+    public PayloadSize Size { get; init; }                    // Small or Large
+    public string Topic { get; init; } = string.Empty;        // Kafka topic name
+    public int MessageCount { get; init; }                    // Messages per run (default 100K)
+    public int Runs { get; init; }                            // Number of runs per test
 
+    /// <summary>
+    /// Builds the full 8-test matrix from the provided settings.
+    /// Producer tests (T1.1-T1.4) run first and populate the topics;
+    /// Consumer tests (T2.1-T2.4) then read from those topics.
+    /// </summary>
     public static List<TestDefinition> GetAll(Config.TestSettings settings) =>
     [
-        // Producer tests
-        new()
+        // ── Producer tests (T1.x) ──────────────────────────────────
+        // These run first and write messages to the topics.
+
+        new()   // T1.1: Produce 100K small Avro messages
         {
             Id = "T1.1", Name = "Producer Avro Small",
             Type = TestType.Producer, Format = SerializationFormat.Avro,
             Size = PayloadSize.Small, Topic = settings.AvroSmallTopic,
             MessageCount = settings.MessageCount, Runs = settings.ProducerRuns
         },
-        new()
+        new()   // T1.2: Produce 100K large Avro messages
         {
             Id = "T1.2", Name = "Producer Avro Large",
             Type = TestType.Producer, Format = SerializationFormat.Avro,
             Size = PayloadSize.Large, Topic = settings.AvroLargeTopic,
             MessageCount = settings.MessageCount, Runs = settings.ProducerRuns
         },
-        new()
+        new()   // T1.3: Produce 100K small JSON messages
         {
             Id = "T1.3", Name = "Producer JSON Small",
             Type = TestType.Producer, Format = SerializationFormat.Json,
             Size = PayloadSize.Small, Topic = settings.JsonSmallTopic,
             MessageCount = settings.MessageCount, Runs = settings.ProducerRuns
         },
-        new()
+        new()   // T1.4: Produce 100K large JSON messages
         {
             Id = "T1.4", Name = "Producer JSON Large",
             Type = TestType.Producer, Format = SerializationFormat.Json,
@@ -56,29 +81,32 @@ public class TestDefinition
             MessageCount = settings.MessageCount, Runs = settings.ProducerRuns
         },
 
-        // Consumer tests
-        new()
+        // ── Consumer tests (T2.x) ──────────────────────────────────
+        // These read from the topics populated by the producer tests above.
+        // Each run uses a unique consumer group to read from offset 0.
+
+        new()   // T2.1: Consume small Avro messages
         {
             Id = "T2.1", Name = "Consumer Avro Small",
             Type = TestType.Consumer, Format = SerializationFormat.Avro,
             Size = PayloadSize.Small, Topic = settings.AvroSmallTopic,
             MessageCount = settings.MessageCount, Runs = settings.ConsumerRuns
         },
-        new()
+        new()   // T2.2: Consume large Avro messages
         {
             Id = "T2.2", Name = "Consumer Avro Large",
             Type = TestType.Consumer, Format = SerializationFormat.Avro,
             Size = PayloadSize.Large, Topic = settings.AvroLargeTopic,
             MessageCount = settings.MessageCount, Runs = settings.ConsumerRuns
         },
-        new()
+        new()   // T2.3: Consume small JSON messages
         {
             Id = "T2.3", Name = "Consumer JSON Small",
             Type = TestType.Consumer, Format = SerializationFormat.Json,
             Size = PayloadSize.Small, Topic = settings.JsonSmallTopic,
             MessageCount = settings.MessageCount, Runs = settings.ConsumerRuns
         },
-        new()
+        new()   // T2.4: Consume large JSON messages
         {
             Id = "T2.4", Name = "Consumer JSON Large",
             Type = TestType.Consumer, Format = SerializationFormat.Json,
