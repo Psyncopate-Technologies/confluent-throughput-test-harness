@@ -25,6 +25,9 @@ credentials/
 results/
 *.csv
 
+## Claude Code
+.claude/
+
 ## Source artifacts
 *.zip
 Schemas/TestAvroDataTypesMsg.avsc
