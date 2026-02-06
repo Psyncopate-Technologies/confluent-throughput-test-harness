@@ -164,7 +164,7 @@ foreach (var test in testList)
 
                         var remaining = test.Duration!.Value - elapsed;
                         if (remaining < TimeSpan.Zero) remaining = TimeSpan.Zero;
-                        var pct = (int)(elapsed.TotalSeconds / totalSeconds * 100);
+                        var pct = Math.Min(100, (int)(elapsed.TotalSeconds / totalSeconds * 100));
                         var filled = pct / 5;   // 20-char bar
                         var bar = new string('\u2588', filled) + new string('\u2591', 20 - filled);
                         ctx.Status(

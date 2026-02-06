@@ -66,7 +66,9 @@ For each test run, the harness captures:
 - **Peak memory (MB)** -- working set high watermark
 - **Delivery errors** -- count of failed produce/consume operations
 
-Results are displayed in a formatted console table and exported to CSV.
+In duration mode, time-series throughput samples are collected every second, capturing cumulative message counts over time. These samples power the interactive line charts in the HTML report.
+
+Results are displayed in a formatted console table and exported to both CSV and an interactive HTML report.
 
 ## Prerequisites
 
@@ -319,15 +321,27 @@ dotnet run -- --help
 5. **Consumer tests (T2.1--T2.4)** run next, each consuming messages from the topics populated in step 4. In count mode, each run consumes a fixed number of messages. In duration mode, each run consumes continuously for the specified time. Each run uses a unique consumer group (`throughput-test-{TestId}-run-{N}-{guid}`) to read from offset 0.
 6. A formatted results table is printed to the console (including actual message count per run).
 7. Results are exported to a timestamped CSV file in `bin/Debug/net9.0/results/`.
+8. An interactive HTML report with Chart.js charts is generated alongside the CSV.
 
 ### Test Output
 
 The console output includes:
-- Per-run metrics for each test
+- Per-run metrics for each test (msgs/sec, MB/sec, elapsed time, message count, errors)
 - Averaged metrics per test
 - A summary comparison table across all tests
 
-CSV files are written to the `results/` directory under the build output with the format `throughput-results-YYYYMMDD-HHmmss.csv`.
+All output files are written to the `results/` directory under the build output (`bin/Debug/net9.0/results/`):
+
+| File | Format | Description |
+|------|--------|-------------|
+| `throughput-results-YYYYMMDD-HHmmss.csv` | CSV | Raw metrics for every run plus per-test averages |
+| `throughput-report-YYYYMMDD-HHmmss.html` | HTML | Interactive Chart.js report (opens in any browser) |
+
+The HTML report includes:
+- **Summary table** with all metrics for every test run
+- **Bar charts** comparing msgs/sec and MB/sec across all tests
+- **Time-series line charts** showing instantaneous throughput over time (duration mode only), grouped by producer and consumer tests
+- Color-coded by test: Avro Small (green), Avro Large (blue), JSON Small (orange), JSON Large (red)
 
 ## Project Structure
 
@@ -361,7 +375,8 @@ confluent-throughput-test-harness/
 ├── Tests/
 │   ├── TestDefinition.cs               # Test IDs, types, and configuration
 │   ├── TestResult.cs                   # Per-run metrics
-│   └── TestSuite.cs                    # Aggregation and averages
+│   ├── TestSuite.cs                    # Aggregation and averages
+│   └── ThroughputSample.cs            # Time-series throughput snapshot
 ├── Metrics/
 │   ├── ResourceMonitor.cs              # CPU/memory sampling (250ms interval)
 │   └── ByteCountingDeserializer.cs     # Wraps deserializers for byte tracking
@@ -370,7 +385,8 @@ confluent-throughput-test-harness/
 │   └── ConsumerTestRunner.cs           # Consumer benchmark (Avro + JSON)
 └── Reporting/
     ├── ConsoleReporter.cs              # Spectre.Console formatted tables
-    └── CsvReporter.cs                  # CSV export
+    ├── CsvReporter.cs                  # CSV export
+    └── HtmlChartReporter.cs           # Interactive Chart.js HTML report
 ```
 
 ## Design Decisions
@@ -384,3 +400,4 @@ confluent-throughput-test-harness/
 - **Per-message uniqueness**: Each message gets a unique `__test_seq` (sequence number) and `__test_ts` (ISO timestamp) stamped into the value before every `Produce()`. This proves the serializer is doing real work on every message, not serving a cached serialization result. One record template is created and mutated in-place to avoid object construction overhead.
 - **Dual execution modes**: Count-based mode (default) produces/consumes a fixed number of messages for quick benchmarking. Duration-based mode (`--duration N`) runs each test for N minutes, capturing sustained throughput over longer periods (e.g., 10, 15, or 20 minutes). Both modes coexist and can be selected via CLI or config.
 - **Unique consumer group per run**: Each consumer run creates a group ID like `throughput-test-T2.1-run-1-<guid>` so every run reads the full topic from the beginning.
+- **Interactive HTML report**: Every test run generates a self-contained HTML file using Chart.js (loaded from CDN). Bar charts compare throughput across all tests at a glance. In duration mode, time-series line charts plot instantaneous throughput (computed from consecutive cumulative samples) over the full run, making it easy to spot warm-up periods, throttling, or throughput degradation.
