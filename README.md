@@ -72,7 +72,7 @@ Results are displayed in a formatted console table and exported to both CSV and 
 
 ## Prerequisites
 
-- [.NET 9 SDK](https://dotnet.microsoft.com/download/dotnet/9.0) (or later)
+- [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) (or later)
 - A Confluent Cloud environment with:
   - A Kafka cluster
   - Schema Registry enabled
@@ -86,10 +86,10 @@ Results are displayed in a formatted console table and exported to both CSV and 
 | `Confluent.SchemaRegistry` | 2.13.0 | Schema Registry client |
 | `Confluent.SchemaRegistry.Serdes.Avro` | 2.13.0 | Avro serializer/deserializer with Schema Registry integration |
 | `Confluent.SchemaRegistry.Serdes.Json` | 2.13.0 | JSON Schema serializer/deserializer with Schema Registry integration |
-| `Microsoft.Extensions.Configuration.Json` | 9.0.0 | JSON configuration file provider |
-| `Microsoft.Extensions.Configuration.EnvironmentVariables` | 9.0.0 | Environment variable configuration provider |
-| `Microsoft.Extensions.Configuration.Binder` | 9.0.0 | Configuration binding to POCO settings classes |
-| `Spectre.Console` | 0.49.1 | Rich console output with formatted tables and spinners |
+| `Microsoft.Extensions.Configuration.Json` | 10.0.2 | JSON configuration file provider |
+| `Microsoft.Extensions.Configuration.EnvironmentVariables` | 10.0.2 | Environment variable configuration provider |
+| `Microsoft.Extensions.Configuration.Binder` | 10.0.2 | Configuration binding to POCO settings classes |
+| `Spectre.Console` | 0.54.0 | Rich console output with formatted tables and spinners |
 
 All packages are restored automatically via `dotnet restore`.
 
