@@ -13,6 +13,9 @@ public class TestResult
 {
     public string TestId { get; init; } = string.Empty;
     public string TestName { get; init; } = string.Empty;
+    public string ProduceApi { get; init; } = string.Empty;
+    public string CommitStrategy { get; init; } = string.Empty;
+    public string RecordType { get; init; } = string.Empty;
     public int RunNumber { get; init; }
     public int MessageCount { get; init; }
     public long TotalBytes { get; init; }

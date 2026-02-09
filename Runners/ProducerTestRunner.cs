@@ -229,6 +229,9 @@ public class ProducerTestRunner
         {
             TestId = test.Id,
             TestName = test.Name,
+            ProduceApi = test.ProduceApi.ToString(),
+            CommitStrategy = test.CommitStrategy.ToString(),
+            RecordType = test.RecordType.ToString(),
             RunNumber = runNumber,
             MessageCount = messageCount,
             TotalBytes = estimateBytes(record, messageCount),

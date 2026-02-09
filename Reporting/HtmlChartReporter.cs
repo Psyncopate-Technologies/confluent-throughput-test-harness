@@ -149,7 +149,7 @@ public static class HtmlChartReporter
         sb.AppendLine("  <h2>Results Summary</h2>");
         sb.AppendLine("  <table>");
         sb.AppendLine("    <thead><tr>");
-        sb.AppendLine("      <th>Test</th><th>Messages</th><th>Elapsed</th><th>Msgs/sec</th>");
+        sb.AppendLine("      <th>Test</th><th>API</th><th>Commit</th><th>RecordType</th><th>Messages</th><th>Elapsed</th><th>Msgs/sec</th>");
         sb.AppendLine("      <th>MB/sec</th><th>Avg Latency (ms)</th><th>Peak CPU %</th><th>Peak Mem (MB)</th><th>Errors</th>");
         sb.AppendLine("    </tr></thead>");
         sb.AppendLine("    <tbody>");
@@ -161,6 +161,9 @@ public static class HtmlChartReporter
 
             sb.AppendLine("    <tr>");
             sb.AppendLine($"      <td>{Escape(avg.TestId)} {Escape(avg.TestName.Replace(" (Avg)", ""))}</td>");
+            sb.AppendLine($"      <td>{Escape(avg.ProduceApi)}</td>");
+            sb.AppendLine($"      <td>{Escape(avg.CommitStrategy)}</td>");
+            sb.AppendLine($"      <td>{Escape(avg.RecordType)}</td>");
             sb.AppendLine($"      <td>{avg.MessageCount:N0}</td>");
             sb.AppendLine($"      <td>{avg.Elapsed:mm\\:ss\\.fff}</td>");
             sb.AppendLine($"      <td><strong>{avg.MessagesPerSecond:N0}</strong></td>");

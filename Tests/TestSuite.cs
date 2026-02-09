@@ -29,6 +29,9 @@ public class TestSuite
         {
             TestId = testId,
             TestName = runs[0].TestName + " (Avg)",
+            ProduceApi = runs[0].ProduceApi,
+            CommitStrategy = runs[0].CommitStrategy,
+            RecordType = runs[0].RecordType,
             RunNumber = 0,
             MessageCount = (int)runs.Average(r => r.MessageCount),
             TotalBytes = (long)runs.Average(r => r.TotalBytes),

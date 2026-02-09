@@ -20,7 +20,7 @@ public static class CsvReporter
 
         var lines = new List<string>
         {
-            "TestId,TestName,RunNumber,MessageCount,TotalBytes,ElapsedMs,MessagesPerSecond,MegabytesPerSecond,AvgLatencyMs,PeakCpuPercent,PeakMemoryMB,DeliveryErrors"
+            "TestId,TestName,ProduceApi,CommitStrategy,RecordType,RunNumber,MessageCount,TotalBytes,ElapsedMs,MessagesPerSecond,MegabytesPerSecond,AvgLatencyMs,PeakCpuPercent,PeakMemoryMB,DeliveryErrors"
         };
 
         foreach (var r in suite.Results.OrderBy(r => r.TestId).ThenBy(r => r.RunNumber))
@@ -28,6 +28,9 @@ public static class CsvReporter
             lines.Add(string.Join(",",
                 r.TestId,
                 $"\"{r.TestName}\"",
+                r.ProduceApi,
+                r.CommitStrategy,
+                r.RecordType,
                 r.RunNumber,
                 r.MessageCount,
                 r.TotalBytes,
@@ -50,6 +53,9 @@ public static class CsvReporter
                 lines.Add(string.Join(",",
                     avg.TestId,
                     $"\"{avg.TestName}\"",
+                    avg.ProduceApi,
+                    avg.CommitStrategy,
+                    avg.RecordType,
                     "AVG",
                     avg.MessageCount,
                     avg.TotalBytes,

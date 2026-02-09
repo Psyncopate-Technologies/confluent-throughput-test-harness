@@ -24,6 +24,9 @@ public static class ConsoleReporter
         var detailTable = new Table()
             .Border(TableBorder.Rounded)
             .AddColumn("[bold]Test[/]")
+            .AddColumn("[bold]API[/]")
+            .AddColumn("[bold]Commit[/]")
+            .AddColumn("[bold]RecordType[/]")
             .AddColumn("[bold]Run[/]", c => c.RightAligned())
             .AddColumn("[bold]Messages[/]", c => c.RightAligned())
             .AddColumn("[bold]Elapsed[/]", c => c.RightAligned())
@@ -42,6 +45,9 @@ public static class ConsoleReporter
             {
                 detailTable.AddRow(
                     $"[yellow]{r.TestId}[/] {r.TestName}",
+                    r.ProduceApi,
+                    r.CommitStrategy,
+                    r.RecordType,
                     r.RunNumber.ToString(),
                     r.MessageCount.ToString("N0"),
                     r.Elapsed.ToString(@"mm\:ss\.fff"),
@@ -60,6 +66,9 @@ public static class ConsoleReporter
             {
                 detailTable.AddRow(
                     $"[bold green]{avg.TestId}[/] [bold]{avg.TestName}[/]",
+                    $"[bold]{avg.ProduceApi}[/]",
+                    $"[bold]{avg.CommitStrategy}[/]",
+                    $"[bold]{avg.RecordType}[/]",
                     "[bold]AVG[/]",
                     $"[bold]{avg.MessageCount:N0}[/]",
                     $"[bold]{avg.Elapsed:mm\\:ss\\.fff}[/]",
@@ -84,6 +93,9 @@ public static class ConsoleReporter
         var summaryTable = new Table()
             .Border(TableBorder.Rounded)
             .AddColumn("[bold]Test[/]")
+            .AddColumn("[bold]API[/]")
+            .AddColumn("[bold]Commit[/]")
+            .AddColumn("[bold]RecordType[/]")
             .AddColumn("[bold]Msgs/sec[/]", c => c.RightAligned())
             .AddColumn("[bold]MB/sec[/]", c => c.RightAligned())
             .AddColumn("[bold]Avg Latency (ms)[/]", c => c.RightAligned());
@@ -95,6 +107,9 @@ public static class ConsoleReporter
             {
                 summaryTable.AddRow(
                     $"{avg.TestId} {avg.TestName.Replace(" (Avg)", "")}",
+                    avg.ProduceApi,
+                    avg.CommitStrategy,
+                    avg.RecordType,
                     avg.MessagesPerSecond.ToString("N0"),
                     avg.MegabytesPerSecond.ToString("F2"),
                     avg.AvgLatencyMs.ToString("F4")
