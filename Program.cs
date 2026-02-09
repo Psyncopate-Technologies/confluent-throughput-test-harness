@@ -129,7 +129,7 @@ AnsiConsole.WriteLine();
 AnsiConsole.MarkupLine($"[grey]Bootstrap:[/] {kafkaSettings.BootstrapServers}");
 AnsiConsole.MarkupLine($"[grey]Schema Registry:[/] {srSettings.Url}");
 if (testSettings.DurationMinutes.HasValue)
-    AnsiConsole.MarkupLine($"[grey]Mode:[/] Duration-based ({testSettings.DurationMinutes} min per run)");
+    AnsiConsole.MarkupLine($"[grey]Mode:[/] Hybrid ({testSettings.MessageCount:N0} msgs or {testSettings.DurationMinutes} min, whichever first)");
 else
     AnsiConsole.MarkupLine($"[grey]Mode:[/] Count-based ({testSettings.MessageCount:N0} messages per run)");
 AnsiConsole.MarkupLine($"[grey]Tests to run:[/] {string.Join(", ", testList.Select(t => t.Id))}");
@@ -264,8 +264,9 @@ static void PrintHelp()
     AnsiConsole.MarkupLine("  dotnet run -- --help              Show this help");
     AnsiConsole.WriteLine();
     AnsiConsole.MarkupLine("[bold]Modes:[/]");
-    AnsiConsole.MarkupLine("  Count-based (default):  Produce/consume a fixed number of messages per run");
-    AnsiConsole.MarkupLine("  Duration-based:         Produce/consume for a fixed time (--duration N minutes)");
+    AnsiConsole.MarkupLine("  Hybrid (default):  Stop each run at 100K messages or 3 min, whichever comes first");
+    AnsiConsole.MarkupLine("  Count-only:        Set DurationMinutes to null in appsettings.json");
+    AnsiConsole.MarkupLine("  --duration N       Override the time limit to N minutes per run");
     AnsiConsole.WriteLine();
     AnsiConsole.MarkupLine("[bold]Producer Tests (T1.x):[/]");
     AnsiConsole.MarkupLine("  [grey]Avro Small Specific (27 fields):[/]");

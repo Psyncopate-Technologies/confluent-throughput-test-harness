@@ -305,9 +305,8 @@ public class ProducerTestRunner
 
     private static bool ShouldContinueProducing(TestDefinition test, int messageCount, Stopwatch sw)
     {
-        return test.Duration.HasValue
-            ? sw.Elapsed < test.Duration.Value
-            : messageCount < test.MessageCount;
+        return messageCount < test.MessageCount
+            && (!test.Duration.HasValue || sw.Elapsed < test.Duration.Value);
     }
 
     private ProducerConfig BuildProducerConfig() => new()

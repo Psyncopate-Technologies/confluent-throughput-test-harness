@@ -72,11 +72,8 @@ public class TestDefinition
             ? TimeSpan.FromMinutes(settings.DurationMinutes.Value)
             : null;
 
-        // In duration mode, default to 1 run per test since each run already
-        // covers a sustained period (e.g., 3 or 15 minutes). In count mode,
-        // use the configured ProducerRuns/ConsumerRuns (default 3/5).
-        var producerRuns = duration.HasValue ? 1 : settings.ProducerRuns;
-        var consumerRuns = duration.HasValue ? 1 : settings.ConsumerRuns;
+        var producerRuns = settings.ProducerRuns;
+        var consumerRuns = settings.ConsumerRuns;
 
         // ── Producer tests (T1.1–T1.24) ────────────────────────────────
         // The 4 produce-api / commit-strategy combinations, in matrix order.

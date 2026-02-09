@@ -165,8 +165,9 @@ public class ConsumerTestRunner
 
         var sw = Stopwatch.StartNew();
 
-        // Unified loop: count-based checks message count, duration-based checks elapsed time
-        while (isDurationMode ? sw.Elapsed < test.Duration!.Value : messagesConsumed < test.MessageCount)
+        // Hybrid loop: stop when either message count or duration limit is reached (whichever first)
+        while (messagesConsumed < test.MessageCount
+            && (!isDurationMode || sw.Elapsed < test.Duration!.Value))
         {
             try
             {
