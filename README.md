@@ -4,10 +4,9 @@ A .NET 10 console application that benchmarks **Avro vs JSON** serialization thr
 
 ## Test Matrix
 
-The harness runs **28 tests**: 24 producer tests (T1.1--T1.24) and 4 consumer tests (T2.1--T2.4). It supports two execution modes:
+The harness runs **28 tests**: 24 producer tests (T1.1--T1.24) and 4 consumer tests (T2.1--T2.4).
 
-- **Duration-based (default)**: Each test runs for a specified number of minutes (default 3 minutes), producing or consuming as many messages as possible within that time window.
-- **Count-based**: Each test produces or consumes a fixed number of messages (default 100,000). Set `DurationMinutes` to `null` in `appsettings.json` to use this mode.
+Each test run uses **hybrid termination**: it stops when **either** the message count limit (default 100,000) or the time limit (default 3 minutes) is reached -- whichever comes first. Fast tests (e.g., Batch5K) finish in seconds after hitting 100K messages; slow tests (e.g., Single commit) run for the full 3 minutes. Each producer test runs 3 times; each consumer test runs 5 times.
 
 ### Five Test Dimensions (Producers)
 
@@ -96,7 +95,7 @@ For each test run, the harness captures:
 - **Peak memory (MB)** -- working set high watermark
 - **Delivery errors** -- count of failed produce/consume operations
 
-In duration mode, time-series throughput samples are collected every second, capturing cumulative message counts over time. These samples power the interactive line charts in the HTML report.
+When a time limit is configured (default 3 minutes), time-series throughput samples are collected every second, capturing cumulative message counts over time. These samples power the interactive line charts in the HTML report.
 
 Results are displayed in a formatted console table (with API, Commit Strategy, and Record Type columns) and exported to both CSV and an interactive HTML report.
 
@@ -293,8 +292,8 @@ Create `appsettings.Development.json` in the project root:
 | `Kafka` | `CompressionType` | `Lz4` | Producer compression (`None`, `Gzip`, `Snappy`, `Lz4`, `Zstd`) |
 | `SchemaRegistry` | `Url` | -- | Schema Registry endpoint URL |
 | `SchemaRegistry` | `BasicAuthUserInfo` | -- | `API_KEY:API_SECRET` format |
-| `Test` | `MessageCount` | `100000` | Messages per test run (count mode) |
-| `Test` | `DurationMinutes` | `3` | Minutes per test run (duration mode); set to `null` for count mode |
+| `Test` | `MessageCount` | `100000` | Max messages per test run (hybrid mode) |
+| `Test` | `DurationMinutes` | `3` | Max minutes per test run (hybrid mode); set to `null` for count-only mode |
 | `Test` | `ProducerRuns` | `3` | Number of runs per producer test |
 | `Test` | `ConsumerRuns` | `5` | Number of runs per consumer test |
 | `Test` | `BatchCommitSize` | `5000` | Flush interval for `BatchConfigurable` commit strategy |
@@ -329,7 +328,7 @@ dotnet build
 ### Execution Scenarios
 
 ```bash
-# ── Duration Mode (default: 3 minutes per run) ─────────────────────
+# ── Hybrid Mode (default: 100K msgs or 3 min, whichever first) ────
 
 # Run all 28 tests (T1.1-T1.24 producers, then T2.1-T2.4 consumers)
 dotnet run
@@ -346,17 +345,17 @@ dotnet run -- --test T1.1
 # Run a range of tests (e.g., all Avro Small Specific + Generic)
 dotnet run -- --test T1.1-T1.8
 
-# Override duration to 10 minutes per run
+# Override the time limit to 10 minutes per run
 dotnet run -- --duration 10
 
-# Run only producer tests for 15 minutes each
+# Run only producer tests with a 15-minute time limit each
 dotnet run -- --producer-only --duration 15
 
-# ── Count Mode ─────────────────────────────────────────────────────
-# To use count mode, set "DurationMinutes": null in appsettings.json
-# or appsettings.Development.json, then:
+# ── Count-Only Mode ───────────────────────────────────────────────
+# To disable the time limit and use only message count,
+# set "DurationMinutes": null in appsettings.json, then:
 
-# Run all 28 tests with 100K messages per run
+# Run all 28 tests with 100K messages per run (no time limit)
 dotnet run
 
 # ── Help ───────────────────────────────────────────────────────────
@@ -371,14 +370,14 @@ dotnet run -- --help
 2. Both Avro schemas are parsed from the `Schemas/` directory. Custom logical types (`varchar`, `char`) are registered to handle the freight schema.
 3. CLI arguments are parsed to determine which tests to run and whether to override the duration.
 4. The full 28-test matrix is generated from `TestDefinition.GetAll()`, then filtered by CLI flags (`--test`, `--producer-only`, `--consumer-only`).
-5. **Producer tests (T1.1--T1.24)** run first. Each test is routed to the correct setup method based on its format/size/record-type combination:
+5. **Producer tests (T1.1--T1.24)** run first, each executing the configured number of runs (default 3). Each run terminates when either the message count limit or time limit is reached, whichever comes first. Tests are routed to the correct setup method based on their format/size/record-type combination:
    - **Avro SpecificRecord**: Uses `AvroSerializer<FreightSmallSpecific>` or `AvroSerializer<FreightLargeSpecific>` with hand-written `ISpecificRecord` implementations.
    - **Avro GenericRecord**: Uses `AvroSerializer<GenericRecord>` with the parsed `.avsc` schemas.
    - **JSON**: Uses `JsonSerializer<T>` with POCO classes.
    - For `Produce` (fire-and-forget) tests, async serializers are wrapped with `.AsSyncOverAsync()`.
    - For `ProduceAsync` tests, async serializers are used directly (`IAsyncSerializer<T>`).
    - The unified `RunProducerLoopAsync` handles produce-API branching and commit-strategy flushing.
-6. **Consumer tests (T2.1--T2.4)** run next, each consuming messages from their configured topics. Each run uses a unique consumer group (`throughput-test-{TestId}-run-{N}-{guid}`) to read from offset 0.
+6. **Consumer tests (T2.1--T2.4)** run next, each consuming messages from their configured topics with the same hybrid termination logic. Each run uses a unique consumer group (`throughput-test-{TestId}-run-{N}-{guid}`) to read from offset 0.
 7. A formatted results table is printed to the console with per-run and averaged metrics, including API, Commit Strategy, and Record Type columns.
 8. Results are exported to a timestamped CSV file and an interactive HTML report in `bin/Debug/net10.0/results/`.
 
@@ -399,7 +398,7 @@ All output files are written to the `results/` directory under the build output 
 The HTML report includes:
 - **Summary table** with all metrics for every test, including API, Commit Strategy, and Record Type
 - **Bar charts** comparing msgs/sec and MB/sec across all tests
-- **Time-series line charts** showing instantaneous throughput over time (duration mode only), grouped by producer and consumer tests
+- **Time-series line charts** showing instantaneous throughput over time (when a time limit is configured), grouped by producer and consumer tests
 - Color-coded by test for easy visual comparison
 
 ## Project Structure
@@ -465,6 +464,6 @@ confluent-throughput-test-harness/
 - **Pre-registered schemas**: All schemas are registered ahead of time. Serializers use `AutoRegisterSchemas = false` and `UseLatestVersion = true` to look up schemas by subject at runtime.
 - **Integer keys**: All messages use sequential integer keys (1, 2, 3, ...) serialized with `AvroSerializer<int>` for Avro topics or `JsonSerializer<T>` / default `Serializers.Int32` for JSON topics.
 - **Per-message uniqueness**: Each message gets a unique `__test_seq` (sequence number) and `__test_ts` (ISO timestamp) stamped into the value before every produce call. This proves the serializer is doing real work on every message. One record template is created and mutated in-place to avoid object construction overhead.
-- **Dual execution modes**: Duration-based mode (default, 3 minutes) captures sustained throughput over longer periods. Count-based mode produces/consumes a fixed number of messages for quick benchmarking. Both modes coexist and can be selected via config or CLI.
+- **Hybrid termination**: Each test run stops when either the message count limit (default 100K) or the time limit (default 3 minutes) is reached, whichever comes first. Fast tests (e.g., Batch5K) hit the message count in seconds; slow tests (e.g., Single commit) are capped by the time limit. Set `DurationMinutes` to `null` for count-only mode.
 - **Unique consumer group per run**: Each consumer run creates a group ID like `throughput-test-T2.1-run-1-<guid>` so every run reads the full topic from the beginning.
-- **Interactive HTML report**: Every test run generates a self-contained HTML file using Chart.js (loaded from CDN). Bar charts compare throughput across all tests at a glance. In duration mode, time-series line charts plot instantaneous throughput over the full run, making it easy to spot warm-up periods, throttling, or throughput degradation.
+- **Interactive HTML report**: Every test run generates a self-contained HTML file using Chart.js (loaded from CDN). Bar charts compare throughput across all tests at a glance. When a time limit is configured, time-series line charts plot instantaneous throughput over the full run, making it easy to spot warm-up periods, throttling, or throughput degradation.
