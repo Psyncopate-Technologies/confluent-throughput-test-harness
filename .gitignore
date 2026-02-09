@@ -27,6 +27,7 @@ results/
 
 ## Claude Code
 .claude/
+CLAUD.md
 
 ## Source artifacts
 *.zip
