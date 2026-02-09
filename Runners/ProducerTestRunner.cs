@@ -2,15 +2,17 @@
 // ProducerTestRunner.cs
 // Created:  2026-02-05
 // Author:   Ayu Admassu
-// Purpose:  Executes producer throughput benchmarks for both Avro and
-//           JSON serialization formats. Produces messages using the
-//           fire-and-forget Produce() pattern with delivery handlers
-//           and collects timing, byte count, and resource metrics.
+// Purpose:  Executes producer throughput benchmarks across all 5
+//           dimensions: Serialization (Avro/JSON), Payload Size
+//           (Small/Large), Record Type (Generic/Specific), Produce API
+//           (Produce/ProduceAsync), and Commit Strategy (Single/
+//           BatchConfigurable/Batch5K). Uses a unified produce loop.
 // ────────────────────────────────────────────────────────────────────
 
 using System.Diagnostics;
 using Avro;
 using Avro.Generic;
+using Avro.Specific;
 using Confluent.Kafka;
 using Confluent.Kafka.SyncOverAsync;
 using Confluent.SchemaRegistry;
@@ -19,6 +21,7 @@ using ConfluentThroughputTestHarness.Config;
 using ConfluentThroughputTestHarness.DataFactories;
 using ConfluentThroughputTestHarness.Metrics;
 using ConfluentThroughputTestHarness.Models;
+using ConfluentThroughputTestHarness.Models.AvroSpecific;
 using ConfluentThroughputTestHarness.Tests;
 
 namespace ConfluentThroughputTestHarness.Runners;
@@ -27,92 +30,156 @@ public class ProducerTestRunner
 {
     private readonly KafkaSettings _kafkaSettings;
     private readonly SchemaRegistrySettings _srSettings;
-    private readonly RecordSchema _smallSchema;   // Parsed Avro schema for the 25-field freight subset
-    private readonly RecordSchema _largeSchema;    // Parsed Avro schema for the full 104-field freight table
+    private readonly TestSettings _testSettings;
+    private readonly RecordSchema _smallSchema;
+    private readonly RecordSchema _largeSchema;
 
     public ProducerTestRunner(
         KafkaSettings kafkaSettings,
         SchemaRegistrySettings srSettings,
+        TestSettings testSettings,
         RecordSchema smallSchema,
         RecordSchema largeSchema)
     {
         _kafkaSettings = kafkaSettings;
         _srSettings = srSettings;
+        _testSettings = testSettings;
         _smallSchema = smallSchema;
         _largeSchema = largeSchema;
     }
 
     /// <summary>
     /// Entry point for a single producer benchmark run.
-    /// Routes to the Avro or JSON code path based on the test definition's format.
-    /// The optional onProgress callback is invoked approximately every second with
-    /// the current message count and elapsed time, enabling live progress display.
+    /// Determines the batch size from the commit strategy, then routes to the
+    /// appropriate setup method based on format, payload size, and record type.
     /// </summary>
     public async Task<TestResult> RunAsync(TestDefinition test, int runNumber,
         Action<int, TimeSpan>? onProgress = null)
     {
-        return test.Format switch
+        int batchSize = test.CommitStrategy switch
         {
-            SerializationFormat.Avro => await RunAvroAsync(test, runNumber, onProgress),
-            SerializationFormat.Json => await RunJsonAsync(test, runNumber, onProgress),
-            _ => throw new ArgumentException($"Unknown format: {test.Format}")
+            CommitStrategy.Single => 1,
+            CommitStrategy.BatchConfigurable => _testSettings.BatchCommitSize,
+            CommitStrategy.Batch5K => 5_000,
+            _ => throw new ArgumentOutOfRangeException(nameof(test.CommitStrategy))
+        };
+
+        return (test.Format, test.Size, test.RecordType) switch
+        {
+            (SerializationFormat.Avro, PayloadSize.Small, RecordType.GenericRecord) =>
+                await RunAvroGenericAsync(test, runNumber, batchSize,
+                    _smallSchema, new AvroSmallDataFactory(_smallSchema), onProgress),
+
+            (SerializationFormat.Avro, PayloadSize.Large, RecordType.GenericRecord) =>
+                await RunAvroGenericAsync(test, runNumber, batchSize,
+                    _largeSchema, new AvroLargeDataFactory(_largeSchema), onProgress),
+
+            (SerializationFormat.Avro, PayloadSize.Small, RecordType.SpecificRecord) =>
+                await RunAvroSpecificAsync(test, runNumber, batchSize,
+                    new AvroSmallSpecificDataFactory(), onProgress),
+
+            (SerializationFormat.Avro, PayloadSize.Large, RecordType.SpecificRecord) =>
+                await RunAvroSpecificAsync(test, runNumber, batchSize,
+                    new AvroLargeSpecificDataFactory(), onProgress),
+
+            (SerializationFormat.Json, PayloadSize.Small, _) =>
+                await RunJsonTypedAsync(test, runNumber, batchSize,
+                    new JsonSmallDataFactory(), onProgress),
+
+            (SerializationFormat.Json, PayloadSize.Large, _) =>
+                await RunJsonTypedAsync(test, runNumber, batchSize,
+                    new JsonLargeDataFactory(), onProgress),
+
+            _ => throw new ArgumentException(
+                $"Unsupported test combination: {test.Format}/{test.Size}/{test.RecordType}")
         };
     }
 
-    /// <summary>
-    /// Produces Avro-serialized messages to the test topic.
-    ///
-    /// Key design points:
-    /// - Uses GenericRecord (not generated classes) because the freight schema has
-    ///   custom logical types (varchar, char) that are incompatible with AvroGen.
-    /// - Keys are sequential integers (1, 2, 3, ...) serialized with AvroSerializer&lt;int&gt;.
-    /// - The AvroSerializer is configured with AutoRegisterSchemas=false and
-    ///   UseLatestVersion=true, requiring schemas to be pre-registered in SR.
-    /// - Uses Produce() (fire-and-forget) instead of ProduceAsync() to avoid
-    ///   allocating a Task per message, which causes GC pressure at high volume.
-    /// - A delivery handler callback tracks errors via Interlocked.Increment.
-    /// - Flush is called every 50K messages and at the end to drain the internal
-    ///   librdkafka buffer before stopping the timer.
-    /// - Each message gets a unique __test_seq and __test_ts via SetMessageHeader(),
-    ///   forcing the serializer to serialize fresh data every time.
-    /// - Supports both count-based (fixed N messages) and duration-based (run for N minutes) modes.
-    /// </summary>
-    private Task<TestResult> RunAvroAsync(TestDefinition test, int runNumber,
-        Action<int, TimeSpan>? onProgress = null)
+    // ── Avro GenericRecord setup ────────────────────────────────────────
+
+    private async Task<TestResult> RunAvroGenericAsync(
+        TestDefinition test, int runNumber, int batchSize,
+        RecordSchema schema, ITestDataFactory<GenericRecord> factory,
+        Action<int, TimeSpan>? onProgress)
     {
-        // Select the schema and data factory based on payload size (small=27 fields, large=106 fields)
-        var schema = test.Size == PayloadSize.Small ? _smallSchema : _largeSchema;
-        ITestDataFactory<GenericRecord> factory = test.Size == PayloadSize.Small
-            ? new AvroSmallDataFactory(schema)
-            : new AvroLargeDataFactory(schema);
-
-        // Create a single record template. Per-message uniqueness is achieved by
-        // calling SetMessageHeader() before each Produce() to stamp __test_seq and __test_ts.
         var record = factory.CreateRecord();
-
         var producerConfig = BuildProducerConfig();
-        var schemaRegistryConfig = BuildSchemaRegistryConfig();
+        using var schemaRegistry = new CachedSchemaRegistryClient(BuildSchemaRegistryConfig());
+        var avroConfig = new AvroSerializerConfig { AutoRegisterSchemas = false, UseLatestVersion = true };
 
-        using var schemaRegistry = new CachedSchemaRegistryClient(schemaRegistryConfig);
+        var keySerializer = new AvroSerializer<int>(schemaRegistry, avroConfig);
+        var valueSerializer = new AvroSerializer<GenericRecord>(schemaRegistry, avroConfig);
 
-        // Configure Avro serializers to look up pre-registered schemas by subject name.
-        // AutoRegisterSchemas=false prevents accidental schema evolution during benchmarks.
-        var avroSerializerConfig = new AvroSerializerConfig
-        {
-            AutoRegisterSchemas = false,
-            UseLatestVersion = true
-        };
+        using var producer = BuildAvroProducer(producerConfig, test.ProduceApi, keySerializer, valueSerializer);
 
-        // Build the producer with Schema Registry-aware key and value serializers.
-        // .AsSyncOverAsync() wraps the async SR serializer for use with the synchronous
-        // Produce() method. This is required because Schema Registry serializers only
-        // implement IAsyncSerializer, but Produce() needs ISerializer.
-        using var producer = new ProducerBuilder<int, GenericRecord>(producerConfig)
-            .SetKeySerializer(new AvroSerializer<int>(schemaRegistry, avroSerializerConfig).AsSyncOverAsync())
-            .SetValueSerializer(new AvroSerializer<GenericRecord>(schemaRegistry, avroSerializerConfig).AsSyncOverAsync())
-            .Build();
+        return await RunProducerLoopAsync(test, runNumber, producer, record, factory, batchSize,
+            EstimateAvroGenericBytes, onProgress);
+    }
 
-        // Start background CPU/memory sampling at 250ms intervals
+    // ── Avro SpecificRecord setup ───────────────────────────────────────
+
+    private async Task<TestResult> RunAvroSpecificAsync<T>(
+        TestDefinition test, int runNumber, int batchSize,
+        ITestDataFactory<T> factory,
+        Action<int, TimeSpan>? onProgress) where T : ISpecificRecord
+    {
+        var record = factory.CreateRecord();
+        var producerConfig = BuildProducerConfig();
+        using var schemaRegistry = new CachedSchemaRegistryClient(BuildSchemaRegistryConfig());
+        var avroConfig = new AvroSerializerConfig { AutoRegisterSchemas = false, UseLatestVersion = true };
+
+        var keySerializer = new AvroSerializer<int>(schemaRegistry, avroConfig);
+        var valueSerializer = new AvroSerializer<T>(schemaRegistry, avroConfig);
+
+        using var producer = BuildAvroProducer(producerConfig, test.ProduceApi, keySerializer, valueSerializer);
+
+        return await RunProducerLoopAsync(test, runNumber, producer, record, factory, batchSize,
+            EstimateAvroSpecificBytes, onProgress);
+    }
+
+    // ── JSON setup ──────────────────────────────────────────────────────
+
+    private async Task<TestResult> RunJsonTypedAsync<T>(
+        TestDefinition test, int runNumber, int batchSize,
+        ITestDataFactory<T> factory,
+        Action<int, TimeSpan>? onProgress) where T : class
+    {
+        var record = factory.CreateRecord();
+        var producerConfig = BuildProducerConfig();
+        using var schemaRegistry = new CachedSchemaRegistryClient(BuildSchemaRegistryConfig());
+        var jsonConfig = new JsonSerializerConfig { AutoRegisterSchemas = false, UseLatestVersion = true };
+
+        var jsonSerializer = new JsonSerializer<T>(schemaRegistry, jsonConfig);
+
+        // ProduceAsync: set IAsyncSerializer directly; Produce: wrap with AsSyncOverAsync
+        using var producer = test.ProduceApi == ProduceApi.ProduceAsync
+            ? new ProducerBuilder<int, T>(producerConfig)
+                .SetValueSerializer(jsonSerializer)
+                .Build()
+            : new ProducerBuilder<int, T>(producerConfig)
+                .SetValueSerializer(jsonSerializer.AsSyncOverAsync())
+                .Build();
+
+        return await RunProducerLoopAsync(test, runNumber, producer, record, factory, batchSize,
+            EstimateJsonBytes, onProgress);
+    }
+
+    // ── Unified produce loop ────────────────────────────────────────────
+
+    /// <summary>
+    /// Unified produce loop that handles all 5 dimensions. The caller sets up the
+    /// producer with the right serializers; this method drives the message loop,
+    /// branching on ProduceApi and flushing per the commit strategy (via batchSize).
+    /// </summary>
+    private async Task<TestResult> RunProducerLoopAsync<TValue>(
+        TestDefinition test, int runNumber,
+        IProducer<int, TValue> producer,
+        TValue record,
+        ITestDataFactory<TValue> factory,
+        int batchSize,
+        Func<TValue, int, long> estimateBytes,
+        Action<int, TimeSpan>? onProgress)
+    {
         using var monitor = new ResourceMonitor();
         var errors = 0;
         var messageCount = 0;
@@ -120,33 +187,34 @@ public class ProducerTestRunner
 
         var sw = Stopwatch.StartNew();
 
-        // Unified loop supports both modes:
-        //   Count-based: produce exactly test.MessageCount messages
-        //   Duration-based: produce continuously until test.Duration elapses
         while (ShouldContinueProducing(test, messageCount, sw))
         {
             messageCount++;
-
-            // Stamp per-message header fields to ensure unique content and prove
-            // the serializer is doing real work on every message.
             factory.SetMessageHeader(record, messageCount, DateTime.UtcNow.ToString("O"));
 
-            // Fire-and-forget produce: the delivery handler runs asynchronously
-            // on librdkafka's background thread when the broker acknowledges.
-            producer.Produce(test.Topic, new Message<int, GenericRecord> { Key = messageCount, Value = record },
-                dr =>
+            var message = new Message<int, TValue> { Key = messageCount, Value = record };
+
+            if (test.ProduceApi == ProduceApi.ProduceAsync)
+            {
+                var result = await producer.ProduceAsync(test.Topic, message);
+                if (result.Status == PersistenceStatus.NotPersisted)
+                    Interlocked.Increment(ref errors);
+            }
+            else
+            {
+                producer.Produce(test.Topic, message, dr =>
                 {
                     if (dr.Error.IsError)
                         Interlocked.Increment(ref errors);
                 });
+            }
 
-            // Periodic flush to prevent the internal buffer from growing unbounded.
-            // Without this, very fast producers can exhaust memory before messages
-            // are transmitted to the broker.
-            if (messageCount % 50_000 == 0)
+            // Flush per commit strategy: Single (batchSize=1) flushes every message,
+            // BatchConfigurable flushes every settings.BatchCommitSize messages,
+            // Batch5K flushes every 5,000 messages.
+            if (messageCount % batchSize == 0)
                 producer.Flush(TimeSpan.FromSeconds(30));
 
-            // Report progress approximately every second for live UI updates
             if (onProgress != null && sw.Elapsed - lastProgressReport >= TimeSpan.FromSeconds(1))
             {
                 onProgress(messageCount, sw.Elapsed);
@@ -154,149 +222,84 @@ public class ProducerTestRunner
             }
         }
 
-        // Final flush: wait for all in-flight messages to be acknowledged before
-        // stopping the timer. This ensures elapsed time reflects true end-to-end latency.
         producer.Flush(TimeSpan.FromSeconds(60));
         sw.Stop();
 
-        // Estimate total bytes by Avro-encoding a single record and multiplying.
-        // The +5 accounts for the Schema Registry wire format header (1 magic byte + 4 schema ID bytes).
-        var totalBytes = EstimateAvroBytes(record, messageCount);
-
-        return Task.FromResult(new TestResult
+        return new TestResult
         {
             TestId = test.Id,
             TestName = test.Name,
             RunNumber = runNumber,
             MessageCount = messageCount,
-            TotalBytes = totalBytes,
+            TotalBytes = estimateBytes(record, messageCount),
             Elapsed = sw.Elapsed,
             PeakCpuPercent = monitor.PeakCpuPercent,
             PeakMemoryBytes = monitor.PeakMemoryBytes,
             DeliveryErrors = errors
-        });
-    }
-
-    /// <summary>
-    /// Produces JSON-serialized messages to the test topic.
-    /// Routes to the generic RunJsonTypedAsync&lt;T&gt; with the appropriate POCO type
-    /// based on payload size (FreightDboTblLoadsSmall or FreightDboTblLoads).
-    /// </summary>
-    private Task<TestResult> RunJsonAsync(TestDefinition test, int runNumber,
-        Action<int, TimeSpan>? onProgress = null)
-    {
-        var producerConfig = BuildProducerConfig();
-        var schemaRegistryConfig = BuildSchemaRegistryConfig();
-
-        using var schemaRegistry = new CachedSchemaRegistryClient(schemaRegistryConfig);
-
-        if (test.Size == PayloadSize.Small)
-            return RunJsonTypedAsync<FreightDboTblLoadsSmall>(
-                test, runNumber, schemaRegistry, producerConfig,
-                new JsonSmallDataFactory(), onProgress);
-        else
-            return RunJsonTypedAsync<FreightDboTblLoads>(
-                test, runNumber, schemaRegistry, producerConfig,
-                new JsonLargeDataFactory(), onProgress);
-    }
-
-    /// <summary>
-    /// Generic JSON producer benchmark. The type parameter T is the POCO class
-    /// matching the JSON schema (FreightDboTblLoadsSmall or FreightDboTblLoads).
-    ///
-    /// Key differences from the Avro path:
-    /// - Uses JsonSerializer&lt;T&gt; for values (requires T : class).
-    /// - Keys use the default Serializers.Int32 (not JsonSerializer&lt;int&gt;) because
-    ///   the Confluent JsonSerializer has a "where T : class" constraint that prevents
-    ///   using it with value types like int.
-    /// - Byte count is estimated by serializing one record to JSON and multiplying.
-    /// - Each message gets a unique __test_seq and __test_ts via SetMessageHeader(),
-    ///   forcing the serializer to serialize fresh data every time.
-    /// - Supports both count-based (fixed N messages) and duration-based (run for N minutes) modes.
-    /// </summary>
-    private Task<TestResult> RunJsonTypedAsync<T>(
-        TestDefinition test, int runNumber,
-        ISchemaRegistryClient schemaRegistry,
-        ProducerConfig producerConfig,
-        ITestDataFactory<T> factory,
-        Action<int, TimeSpan>? onProgress = null) where T : class
-    {
-        var record = factory.CreateRecord();
-
-        // JSON serializer also uses pre-registered schemas (AutoRegisterSchemas=false)
-        var jsonSerializerConfig = new JsonSerializerConfig
-        {
-            AutoRegisterSchemas = false,
-            UseLatestVersion = true
         };
+    }
 
-        // Note: no SetKeySerializer call -- the default Serializers.Int32 is used for int keys.
-        // The JSON value serializer validates against the JSON Schema registered in SR.
-        using var producer = new ProducerBuilder<int, T>(producerConfig)
-            .SetValueSerializer(new JsonSerializer<T>(schemaRegistry, jsonSerializerConfig).AsSyncOverAsync())
-            .Build();
+    // ── Producer builder helpers ────────────────────────────────────────
 
-        using var monitor = new ResourceMonitor();
-        var errors = 0;
-        var messageCount = 0;
-        var lastProgressReport = TimeSpan.Zero;
-
-        var sw = Stopwatch.StartNew();
-
-        // Unified loop supports both count-based and duration-based modes
-        while (ShouldContinueProducing(test, messageCount, sw))
+    /// <summary>
+    /// Builds an Avro producer with the correct serializer wiring for the produce API.
+    /// Produce path: value serializer wrapped with AsSyncOverAsync().
+    /// ProduceAsync path: async value serializer set directly (IAsyncSerializer).
+    /// Key serializer always uses AsSyncOverAsync (int serialization is trivial).
+    /// </summary>
+    private static IProducer<int, TValue> BuildAvroProducer<TValue>(
+        ProducerConfig config,
+        ProduceApi produceApi,
+        AvroSerializer<int> keySerializer,
+        AvroSerializer<TValue> valueSerializer)
+    {
+        if (produceApi == ProduceApi.ProduceAsync)
         {
-            messageCount++;
-
-            // Stamp per-message header fields to ensure unique content
-            factory.SetMessageHeader(record, messageCount, DateTime.UtcNow.ToString("O"));
-
-            producer.Produce(test.Topic, new Message<int, T> { Key = messageCount, Value = record },
-                dr =>
-                {
-                    if (dr.Error.IsError)
-                        Interlocked.Increment(ref errors);
-                });
-
-            if (messageCount % 50_000 == 0)
-                producer.Flush(TimeSpan.FromSeconds(30));
-
-            // Report progress approximately every second for live UI updates
-            if (onProgress != null && sw.Elapsed - lastProgressReport >= TimeSpan.FromSeconds(1))
-            {
-                onProgress(messageCount, sw.Elapsed);
-                lastProgressReport = sw.Elapsed;
-            }
+            return new ProducerBuilder<int, TValue>(config)
+                .SetKeySerializer(keySerializer.AsSyncOverAsync())
+                .SetValueSerializer(valueSerializer)
+                .Build();
         }
 
-        producer.Flush(TimeSpan.FromSeconds(60));
-        sw.Stop();
+        return new ProducerBuilder<int, TValue>(config)
+            .SetKeySerializer(keySerializer.AsSyncOverAsync())
+            .SetValueSerializer(valueSerializer.AsSyncOverAsync())
+            .Build();
+    }
 
-        // Estimate bytes: serialize the record to JSON, measure its UTF-8 byte size,
-        // then add 5 bytes for the Schema Registry wire format header.
+    // ── Byte estimation helpers ─────────────────────────────────────────
+
+    private static long EstimateAvroGenericBytes(GenericRecord record, int messageCount)
+    {
+        using var ms = new MemoryStream();
+        var writer = new GenericDatumWriter<GenericRecord>(record.Schema);
+        var encoder = new Avro.IO.BinaryEncoder(ms);
+        writer.Write(record, encoder);
+        encoder.Flush();
+        var bytesPerMessage = ms.Length + 5;   // +5 = SR wire format header
+        return bytesPerMessage * messageCount;
+    }
+
+    private static long EstimateAvroSpecificBytes<T>(T record, int messageCount) where T : ISpecificRecord
+    {
+        using var ms = new MemoryStream();
+        var writer = new SpecificDatumWriter<T>(record.Schema);
+        var encoder = new Avro.IO.BinaryEncoder(ms);
+        writer.Write(record, encoder);
+        encoder.Flush();
+        var bytesPerMessage = ms.Length + 5;
+        return bytesPerMessage * messageCount;
+    }
+
+    private static long EstimateJsonBytes<T>(T record, int messageCount)
+    {
         var json = System.Text.Json.JsonSerializer.Serialize(record);
         var bytesPerMessage = System.Text.Encoding.UTF8.GetByteCount(json) + 5;
-        var totalBytes = (long)bytesPerMessage * messageCount;
-
-        return Task.FromResult(new TestResult
-        {
-            TestId = test.Id,
-            TestName = test.Name,
-            RunNumber = runNumber,
-            MessageCount = messageCount,
-            TotalBytes = totalBytes,
-            Elapsed = sw.Elapsed,
-            PeakCpuPercent = monitor.PeakCpuPercent,
-            PeakMemoryBytes = monitor.PeakMemoryBytes,
-            DeliveryErrors = errors
-        });
+        return (long)bytesPerMessage * messageCount;
     }
 
-    /// <summary>
-    /// Determines whether the producer loop should continue based on the test mode.
-    /// Count-based: continues until messageCount reaches test.MessageCount.
-    /// Duration-based: continues until elapsed time reaches test.Duration.
-    /// </summary>
+    // ── Shared helpers ──────────────────────────────────────────────────
+
     private static bool ShouldContinueProducing(TestDefinition test, int messageCount, Stopwatch sw)
     {
         return test.Duration.HasValue
@@ -304,33 +307,6 @@ public class ProducerTestRunner
             : messageCount < test.MessageCount;
     }
 
-    /// <summary>
-    /// Estimates total Avro payload bytes by encoding a single record with the
-    /// Avro BinaryEncoder and multiplying by message count. Adds 5 bytes per
-    /// message for the Confluent Schema Registry wire format header
-    /// (1 magic byte + 4-byte schema ID).
-    /// </summary>
-    private long EstimateAvroBytes(GenericRecord record, int messageCount)
-    {
-        using var ms = new MemoryStream();
-        var writer = new Avro.Generic.GenericDatumWriter<GenericRecord>(record.Schema);
-        var encoder = new Avro.IO.BinaryEncoder(ms);
-        writer.Write(record, encoder);
-        encoder.Flush();
-        var payloadSize = ms.Length;
-        var bytesPerMessage = payloadSize + 5;   // +5 = SR wire format header
-        return bytesPerMessage * messageCount;
-    }
-
-    /// <summary>
-    /// Builds the librdkafka producer configuration from application settings.
-    /// Settings are optimized for throughput benchmarking:
-    /// - Acks=Leader (1): only wait for the partition leader to acknowledge
-    /// - LingerMs=100: batch messages for up to 100ms to maximize batch size
-    /// - BatchSize=1MB: large batches reduce per-message overhead
-    /// - LZ4 compression: reduces network I/O with minimal CPU cost
-    /// - EnableIdempotence=false: not needed for benchmarks, avoids overhead
-    /// </summary>
     private ProducerConfig BuildProducerConfig() => new()
     {
         BootstrapServers = _kafkaSettings.BootstrapServers,
@@ -345,10 +321,6 @@ public class ProducerTestRunner
         EnableIdempotence = false
     };
 
-    /// <summary>
-    /// Builds the Schema Registry client configuration for authenticating
-    /// with Confluent Cloud Schema Registry using API key/secret.
-    /// </summary>
     private SchemaRegistryConfig BuildSchemaRegistryConfig() => new()
     {
         Url = _srSettings.Url,

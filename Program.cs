@@ -125,7 +125,7 @@ AnsiConsole.WriteLine();
 // needs the parsed Avro schemas to build GenericRecords; the ConsumerTestRunner
 // does not because it discovers schemas from Schema Registry during deserialization.
 var suite = new TestSuite { StartedAt = DateTime.UtcNow };
-var producerRunner = new ProducerTestRunner(kafkaSettings, srSettings, smallSchema, largeSchema);
+var producerRunner = new ProducerTestRunner(kafkaSettings, srSettings, testSettings, smallSchema, largeSchema);
 var consumerRunner = new ConsumerTestRunner(kafkaSettings, srSettings);
 
 // Iterate through each test, executing the configured number of runs.
