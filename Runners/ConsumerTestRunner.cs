@@ -245,21 +245,27 @@ public class ConsumerTestRunner
     /// - FetchMaxBytes=50MB and MaxPartitionFetchBytes=10MB are set high to allow
     ///   large batches for throughput testing.
     /// </summary>
-    private ConsumerConfig BuildConsumerConfig(string testId, int runNumber) => new()
+    private ConsumerConfig BuildConsumerConfig(string testId, int runNumber)
     {
-        BootstrapServers = _kafkaSettings.BootstrapServers,
-        SecurityProtocol = Enum.Parse<SecurityProtocol>(_kafkaSettings.SecurityProtocol, true),
-        SaslMechanism = Enum.Parse<SaslMechanism>(_kafkaSettings.SaslMechanism, true),
-        SaslUsername = _kafkaSettings.SaslUsername,
-        SaslPassword = _kafkaSettings.SaslPassword,
-        GroupId = $"throughput-test-{testId}-run-{runNumber}-{Guid.NewGuid():N}",
-        AutoOffsetReset = AutoOffsetReset.Earliest,
-        EnableAutoCommit = true,
-        FetchMinBytes = 1,
-        FetchMaxBytes = 52_428_800, // 50MB
-        MaxPartitionFetchBytes = 10_485_760, // 10MB
-        EnablePartitionEof = true
-    };
+        var config = new ConsumerConfig
+        {
+            BootstrapServers = _kafkaSettings.BootstrapServers,
+            SecurityProtocol = Enum.Parse<SecurityProtocol>(_kafkaSettings.SecurityProtocol, true),
+            SaslMechanism = Enum.Parse<SaslMechanism>(_kafkaSettings.SaslMechanism, true),
+            SaslUsername = _kafkaSettings.SaslUsername,
+            SaslPassword = _kafkaSettings.SaslPassword,
+            GroupId = $"throughput-test-{testId}-run-{runNumber}-{Guid.NewGuid():N}",
+            AutoOffsetReset = AutoOffsetReset.Earliest,
+            EnableAutoCommit = true,
+            FetchMinBytes = 1,
+            FetchMaxBytes = 52_428_800, // 50MB
+            MaxPartitionFetchBytes = 10_485_760, // 10MB
+            EnablePartitionEof = true
+        };
+        // Suppress rdkafka informational logs (e.g., telemetry instance id changes)
+        config.Set("log_level", "3"); // 3 = error
+        return config;
+    }
 
     /// <summary>
     /// Builds the Schema Registry client configuration for authenticating

@@ -309,19 +309,25 @@ public class ProducerTestRunner
             && (!test.Duration.HasValue || sw.Elapsed < test.Duration.Value);
     }
 
-    private ProducerConfig BuildProducerConfig() => new()
+    private ProducerConfig BuildProducerConfig()
     {
-        BootstrapServers = _kafkaSettings.BootstrapServers,
-        SecurityProtocol = Enum.Parse<SecurityProtocol>(_kafkaSettings.SecurityProtocol, true),
-        SaslMechanism = Enum.Parse<SaslMechanism>(_kafkaSettings.SaslMechanism, true),
-        SaslUsername = _kafkaSettings.SaslUsername,
-        SaslPassword = _kafkaSettings.SaslPassword,
-        Acks = Enum.Parse<Acks>(_kafkaSettings.Acks, true),
-        LingerMs = _kafkaSettings.LingerMs,
-        BatchSize = _kafkaSettings.BatchSize,
-        CompressionType = Enum.Parse<CompressionType>(_kafkaSettings.CompressionType, true),
-        EnableIdempotence = false
-    };
+        var config = new ProducerConfig
+        {
+            BootstrapServers = _kafkaSettings.BootstrapServers,
+            SecurityProtocol = Enum.Parse<SecurityProtocol>(_kafkaSettings.SecurityProtocol, true),
+            SaslMechanism = Enum.Parse<SaslMechanism>(_kafkaSettings.SaslMechanism, true),
+            SaslUsername = _kafkaSettings.SaslUsername,
+            SaslPassword = _kafkaSettings.SaslPassword,
+            Acks = Enum.Parse<Acks>(_kafkaSettings.Acks, true),
+            LingerMs = _kafkaSettings.LingerMs,
+            BatchSize = _kafkaSettings.BatchSize,
+            CompressionType = Enum.Parse<CompressionType>(_kafkaSettings.CompressionType, true),
+            EnableIdempotence = false
+        };
+        // Suppress rdkafka informational logs (e.g., telemetry instance id changes)
+        config.Set("log_level", "3"); // 3 = error
+        return config;
+    }
 
     private SchemaRegistryConfig BuildSchemaRegistryConfig() => new()
     {
