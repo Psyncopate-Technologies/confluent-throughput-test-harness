@@ -322,6 +322,7 @@ dotnet build
 | `--consumer-only` | Run only consumer tests (T2.1--T2.4) |
 | `--test <ID>` | Run a single test by ID (e.g., `T1.1`, `T2.3`) |
 | `--test <start>-<end>` | Run a range of tests (e.g., `T1.1-T1.8`) |
+| `--test <ID>,<ID>,...` | Run a comma-separated list (e.g., `T1.1,T1.4,T1.8`) |
 | `--duration <N>` | Override duration minutes from CLI (e.g., `--duration 10`) |
 | `--help` | Show usage information and full test list |
 
@@ -344,6 +345,9 @@ dotnet run -- --test T1.1
 
 # Run a range of tests (e.g., all Avro Small Specific + Generic)
 dotnet run -- --test T1.1-T1.8
+
+# Run specific tests by comma-separated list
+dotnet run -- --test T1.1,T1.4,T1.8
 
 # Override the time limit to 10 minutes per run
 dotnet run -- --duration 10

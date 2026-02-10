@@ -53,7 +53,11 @@ var helpRequested = args.Contains("--help", StringComparer.OrdinalIgnoreCase);
 string? specificTest = null;
 var testIndex = Array.FindIndex(args, a => a.Equals("--test", StringComparison.OrdinalIgnoreCase));
 if (testIndex >= 0 && testIndex + 1 < args.Length)
-    specificTest = args[testIndex + 1];
+{
+    // Collect all args after --test until the next flag (starts with --)
+    var testArgs = args.Skip(testIndex + 1).TakeWhile(a => !a.StartsWith("--"));
+    specificTest = string.Join(" ", testArgs).Trim();
+}
 
 // --duration N overrides the message-count based termination with a time-based one.
 // The value from CLI takes precedence over appsettings.json DurationMinutes.
@@ -122,6 +126,12 @@ if (specificTest != null)
                    prefix.Equals(endPrefix, StringComparison.OrdinalIgnoreCase) &&
                    num >= startNum && num <= endNum;
         });
+    }
+    else if (specificTest.Contains(','))
+    {
+        // Comma-separated list: --test T1.1,T1.4,T1.8
+        var ids = specificTest.Split(',').Select(s => s.Trim()).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        testsToRun = testsToRun.Where(t => ids.Contains(t.Id));
     }
     else
     {
@@ -279,6 +289,7 @@ static void PrintHelp()
     AnsiConsole.MarkupLine("  dotnet run -- --consumer-only     Run only consumer tests (T2.x)");
     AnsiConsole.MarkupLine("  dotnet run -- --test T1.1         Run a specific test");
     AnsiConsole.MarkupLine("  dotnet run -- --test T1.1-T1.8    Run a range of tests");
+    AnsiConsole.MarkupLine("  dotnet run -- --test T1.1,T1.4    Run a comma-separated list of tests");
     AnsiConsole.MarkupLine("  dotnet run -- --help              Show this help");
     AnsiConsole.WriteLine();
     AnsiConsole.MarkupLine("[bold]Modes:[/]");
