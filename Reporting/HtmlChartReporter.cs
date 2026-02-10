@@ -81,20 +81,29 @@ public static class HtmlChartReporter
         {
             var producerResults = resultsWithSamples.Where(r => r.TestId.StartsWith("T1")).ToList();
             var consumerResults = resultsWithSamples.Where(r => r.TestId.StartsWith("T2")).ToList();
+            var businessResults = resultsWithSamples.Where(r => r.TestId.StartsWith("T3")).ToList();
 
             sb.AppendLine("  <h2>Throughput Over Time</h2>");
 
             if (producerResults.Count > 0)
             {
-                sb.AppendLine("  <h3>Producer Tests</h3>");
+                sb.AppendLine("  <h3>Drag-Race Producer Tests (T1.x)</h3>");
                 sb.AppendLine("  <div class=\"chart-row\">");
                 sb.AppendLine("    <div class=\"chart-container-wide\"><canvas id=\"producerTimeSeriesChart\"></canvas></div>");
                 sb.AppendLine("  </div>");
             }
 
+            if (businessResults.Count > 0)
+            {
+                sb.AppendLine("  <h3>Business-Realistic Producer Tests (T3.x)</h3>");
+                sb.AppendLine("  <div class=\"chart-row\">");
+                sb.AppendLine("    <div class=\"chart-container-wide\"><canvas id=\"businessTimeSeriesChart\"></canvas></div>");
+                sb.AppendLine("  </div>");
+            }
+
             if (consumerResults.Count > 0)
             {
-                sb.AppendLine("  <h3>Consumer Tests</h3>");
+                sb.AppendLine("  <h3>Consumer Tests (T2.x)</h3>");
                 sb.AppendLine("  <div class=\"chart-row\">");
                 sb.AppendLine("    <div class=\"chart-container-wide\"><canvas id=\"consumerTimeSeriesChart\"></canvas></div>");
                 sb.AppendLine("  </div>");
@@ -149,7 +158,7 @@ public static class HtmlChartReporter
         sb.AppendLine("  <h2>Results Summary</h2>");
         sb.AppendLine("  <table>");
         sb.AppendLine("    <thead><tr>");
-        sb.AppendLine("      <th>Test</th><th>API</th><th>Commit</th><th>RecordType</th><th>Messages</th><th>Elapsed</th><th>Msgs/sec</th>");
+        sb.AppendLine("      <th>Test</th><th>API</th><th>Commit</th><th>Window</th><th>RecordType</th><th>Messages</th><th>Elapsed</th><th>Msgs/sec</th>");
         sb.AppendLine("      <th>MB/sec</th><th>Avg Latency (ms)</th><th>Peak CPU %</th><th>Peak Mem (MB)</th><th>Errors</th>");
         sb.AppendLine("    </tr></thead>");
         sb.AppendLine("    <tbody>");
@@ -163,6 +172,7 @@ public static class HtmlChartReporter
             sb.AppendLine($"      <td>{Escape(avg.TestId)} {Escape(avg.TestName.Replace(" (Avg)", ""))}</td>");
             sb.AppendLine($"      <td>{Escape(avg.ProduceApi)}</td>");
             sb.AppendLine($"      <td>{Escape(avg.CommitStrategy)}</td>");
+            sb.AppendLine($"      <td>{(avg.ConcurrencyWindow > 0 ? avg.ConcurrencyWindow.ToString() : "-")}</td>");
             sb.AppendLine($"      <td>{Escape(avg.RecordType)}</td>");
             sb.AppendLine($"      <td>{avg.MessageCount:N0}</td>");
             sb.AppendLine($"      <td>{avg.Elapsed:mm\\:ss\\.fff}</td>");
@@ -257,9 +267,13 @@ public static class HtmlChartReporter
     {
         var producerResults = resultsWithSamples.Where(r => r.TestId.StartsWith("T1")).ToList();
         var consumerResults = resultsWithSamples.Where(r => r.TestId.StartsWith("T2")).ToList();
+        var businessResults = resultsWithSamples.Where(r => r.TestId.StartsWith("T3")).ToList();
 
         if (producerResults.Count > 0)
-            AppendTimeSeriesChart(sb, "producerTimeSeriesChart", "Producer Throughput Over Time", producerResults);
+            AppendTimeSeriesChart(sb, "producerTimeSeriesChart", "Drag-Race Producer Throughput Over Time", producerResults);
+
+        if (businessResults.Count > 0)
+            AppendTimeSeriesChart(sb, "businessTimeSeriesChart", "Business-Realistic Producer Throughput Over Time", businessResults);
 
         if (consumerResults.Count > 0)
             AppendTimeSeriesChart(sb, "consumerTimeSeriesChart", "Consumer Throughput Over Time", consumerResults);

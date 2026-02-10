@@ -50,12 +50,18 @@ public class ProducerTestRunner
 
     /// <summary>
     /// Entry point for a single producer benchmark run.
-    /// Determines the batch size from the commit strategy, then routes to the
-    /// appropriate setup method based on format, payload size, and record type.
+    /// Routes to business-realistic (T3.x) or drag-race (T1.x) code paths
+    /// based on the commit strategy, then selects the appropriate serializer
+    /// setup based on format, payload size, and record type.
     /// </summary>
     public async Task<TestResult> RunAsync(TestDefinition test, int runNumber,
         Action<int, TimeSpan>? onProgress = null)
     {
+        // T3.x business-realistic tests use a separate code path with
+        // acks=all, idempotence, and Task.WhenAll concurrency windows.
+        if (test.CommitStrategy == CommitStrategy.ConcurrencyWindow)
+            return await RunBusinessRealisticAsync(test, runNumber, onProgress);
+
         int batchSize = test.CommitStrategy switch
         {
             CommitStrategy.Single => 1,
@@ -92,6 +98,39 @@ public class ProducerTestRunner
 
             _ => throw new ArgumentException(
                 $"Unsupported test combination: {test.Format}/{test.Size}/{test.RecordType}")
+        };
+    }
+
+    // ── Business-realistic routing (T3.x) ─────────────────────────────
+
+    /// <summary>
+    /// Routes T3.x business-realistic tests to the appropriate setup method.
+    /// All T3.x tests use ProduceAsync + acks=all + idempotence + Task.WhenAll.
+    /// Avro tests use SpecificRecord only (matching client's source-generated classes).
+    /// </summary>
+    private async Task<TestResult> RunBusinessRealisticAsync(TestDefinition test, int runNumber,
+        Action<int, TimeSpan>? onProgress)
+    {
+        return (test.Format, test.Size) switch
+        {
+            (SerializationFormat.Avro, PayloadSize.Small) =>
+                await RunBusinessAvroSpecificAsync(test, runNumber,
+                    new AvroSmallSpecificDataFactory(), onProgress),
+
+            (SerializationFormat.Avro, PayloadSize.Large) =>
+                await RunBusinessAvroSpecificAsync(test, runNumber,
+                    new AvroLargeSpecificDataFactory(), onProgress),
+
+            (SerializationFormat.Json, PayloadSize.Small) =>
+                await RunBusinessJsonTypedAsync(test, runNumber,
+                    new JsonSmallDataFactory(), onProgress),
+
+            (SerializationFormat.Json, PayloadSize.Large) =>
+                await RunBusinessJsonTypedAsync(test, runNumber,
+                    new JsonLargeDataFactory(), onProgress),
+
+            _ => throw new ArgumentException(
+                $"Unsupported T3.x combination: {test.Format}/{test.Size}")
         };
     }
 
@@ -164,6 +203,129 @@ public class ProducerTestRunner
             EstimateJsonBytes, onProgress);
     }
 
+    // ── Business-realistic Avro SpecificRecord setup (T3.x) ────────────
+
+    private async Task<TestResult> RunBusinessAvroSpecificAsync<T>(
+        TestDefinition test, int runNumber,
+        ITestDataFactory<T> factory,
+        Action<int, TimeSpan>? onProgress) where T : ISpecificRecord
+    {
+        var record = factory.CreateRecord();
+        var producerConfig = BuildBusinessRealisticProducerConfig();
+        using var schemaRegistry = new CachedSchemaRegistryClient(BuildSchemaRegistryConfig());
+        var avroConfig = new AvroSerializerConfig { AutoRegisterSchemas = false, UseLatestVersion = true };
+
+        var valueSerializer = new AvroSerializer<T>(schemaRegistry, avroConfig);
+
+        // T3.x always uses ProduceAsync — set IAsyncSerializer directly
+        using var producer = new ProducerBuilder<int, T>(producerConfig)
+            .SetKeySerializer(new AvroSerializer<int>(schemaRegistry, avroConfig).AsSyncOverAsync())
+            .SetValueSerializer(valueSerializer)
+            .Build();
+
+        return await RunConcurrencyWindowLoopAsync(test, runNumber, producer, record, factory,
+            test.ConcurrencyWindow, EstimateAvroSpecificBytes, onProgress);
+    }
+
+    // ── Business-realistic JSON setup (T3.x) ─────────────────────────
+
+    private async Task<TestResult> RunBusinessJsonTypedAsync<T>(
+        TestDefinition test, int runNumber,
+        ITestDataFactory<T> factory,
+        Action<int, TimeSpan>? onProgress) where T : class
+    {
+        var record = factory.CreateRecord();
+        var producerConfig = BuildBusinessRealisticProducerConfig();
+        using var schemaRegistry = new CachedSchemaRegistryClient(BuildSchemaRegistryConfig());
+        var jsonConfig = new JsonSerializerConfig { AutoRegisterSchemas = false, UseLatestVersion = true };
+
+        var jsonSerializer = new JsonSerializer<T>(schemaRegistry, jsonConfig);
+
+        // T3.x always uses ProduceAsync — set IAsyncSerializer directly
+        using var producer = new ProducerBuilder<int, T>(producerConfig)
+            .SetValueSerializer(jsonSerializer)
+            .Build();
+
+        return await RunConcurrencyWindowLoopAsync(test, runNumber, producer, record, factory,
+            test.ConcurrencyWindow, EstimateJsonBytes, onProgress);
+    }
+
+    // ── Concurrency window produce loop (T3.x) ───────────────────────
+
+    /// <summary>
+    /// Business-realistic produce loop that fires windowSize ProduceAsync calls
+    /// concurrently, awaits all with Task.WhenAll, and checks each DeliveryResult
+    /// for errors. Models real-world background services with guaranteed delivery
+    /// (acks=all + idempotence).
+    /// </summary>
+    private async Task<TestResult> RunConcurrencyWindowLoopAsync<TValue>(
+        TestDefinition test, int runNumber,
+        IProducer<int, TValue> producer,
+        TValue record,
+        ITestDataFactory<TValue> factory,
+        int windowSize,
+        Func<TValue, int, long> estimateBytes,
+        Action<int, TimeSpan>? onProgress)
+    {
+        using var monitor = new ResourceMonitor();
+        var errors = 0;
+        var messageCount = 0;
+        var lastProgressReport = TimeSpan.Zero;
+
+        var sw = Stopwatch.StartNew();
+
+        while (ShouldContinueProducing(test, messageCount, sw))
+        {
+            // Determine batch size: don't exceed message count limit
+            var remaining = test.MessageCount - messageCount;
+            var batch = Math.Min(windowSize, remaining);
+            if (batch <= 0) break;
+
+            var tasks = new List<Task<DeliveryResult<int, TValue>>>(batch);
+
+            for (var i = 0; i < batch; i++)
+            {
+                messageCount++;
+                factory.SetMessageHeader(record, messageCount, DateTime.UtcNow.ToString("O"));
+                var message = new Message<int, TValue> { Key = messageCount, Value = record };
+                tasks.Add(producer.ProduceAsync(test.Topic, message));
+            }
+
+            var results = await Task.WhenAll(tasks);
+            foreach (var dr in results)
+            {
+                if (dr.Status == PersistenceStatus.NotPersisted)
+                    Interlocked.Increment(ref errors);
+            }
+
+            if (onProgress != null && sw.Elapsed - lastProgressReport >= TimeSpan.FromSeconds(1))
+            {
+                onProgress(messageCount, sw.Elapsed);
+                lastProgressReport = sw.Elapsed;
+            }
+        }
+
+        producer.Flush(TimeSpan.FromSeconds(60));
+        sw.Stop();
+
+        return new TestResult
+        {
+            TestId = test.Id,
+            TestName = test.Name,
+            ProduceApi = test.ProduceApi.ToString(),
+            CommitStrategy = test.CommitStrategy.ToString(),
+            RecordType = test.RecordType.ToString(),
+            ConcurrencyWindow = test.ConcurrencyWindow,
+            RunNumber = runNumber,
+            MessageCount = messageCount,
+            TotalBytes = estimateBytes(record, messageCount),
+            Elapsed = sw.Elapsed,
+            PeakCpuPercent = monitor.PeakCpuPercent,
+            PeakMemoryBytes = monitor.PeakMemoryBytes,
+            DeliveryErrors = errors
+        };
+    }
+
     // ── Unified produce loop ────────────────────────────────────────────
 
     /// <summary>
@@ -232,6 +394,7 @@ public class ProducerTestRunner
             ProduceApi = test.ProduceApi.ToString(),
             CommitStrategy = test.CommitStrategy.ToString(),
             RecordType = test.RecordType.ToString(),
+            ConcurrencyWindow = test.ConcurrencyWindow,
             RunNumber = runNumber,
             MessageCount = messageCount,
             TotalBytes = estimateBytes(record, messageCount),
@@ -326,6 +489,31 @@ public class ProducerTestRunner
         };
         // Suppress rdkafka informational logs (e.g., telemetry instance id changes)
         config.Set("log_level", "3"); // 3 = error
+        return config;
+    }
+
+    /// <summary>
+    /// Builds the producer configuration for T3.x business-realistic tests.
+    /// Key differences from the drag-race config:
+    /// - Acks=All: wait for all in-sync replicas to acknowledge (guaranteed delivery)
+    /// - EnableIdempotence=true: exactly-once semantics, no duplicates on retry
+    /// </summary>
+    private ProducerConfig BuildBusinessRealisticProducerConfig()
+    {
+        var config = new ProducerConfig
+        {
+            BootstrapServers = _kafkaSettings.BootstrapServers,
+            SecurityProtocol = Enum.Parse<SecurityProtocol>(_kafkaSettings.SecurityProtocol, true),
+            SaslMechanism = Enum.Parse<SaslMechanism>(_kafkaSettings.SaslMechanism, true),
+            SaslUsername = _kafkaSettings.SaslUsername,
+            SaslPassword = _kafkaSettings.SaslPassword,
+            Acks = Acks.All,
+            EnableIdempotence = true,
+            LingerMs = _kafkaSettings.LingerMs,
+            BatchSize = _kafkaSettings.BatchSize,
+            CompressionType = Enum.Parse<CompressionType>(_kafkaSettings.CompressionType, true),
+        };
+        config.Set("log_level", "3");
         return config;
     }
 

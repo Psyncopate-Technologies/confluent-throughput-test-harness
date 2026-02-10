@@ -27,6 +27,7 @@ public class TestResult
     public long PeakMemoryBytes { get; init; }
     public double PeakMemoryMB => PeakMemoryBytes / 1_048_576.0;
     public int DeliveryErrors { get; init; }
+    public int ConcurrencyWindow { get; init; }
 
     /// <summary>
     /// Time-series throughput snapshots collected during duration-mode runs.

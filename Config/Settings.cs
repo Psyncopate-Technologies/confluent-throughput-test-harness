@@ -35,6 +35,7 @@ public class TestSettings
     public int ProducerRuns { get; set; } = 3;
     public int ConsumerRuns { get; set; } = 5;
     public int BatchCommitSize { get; set; } = 5_000;
+    public int BusinessRealisticRuns { get; set; } = 3;
     public string TopicPrefix { get; set; } = "test-";
     public string AvroSmallTopic { get; set; } = "test-avro-small";
     public string AvroLargeTopic { get; set; } = "test-avro-large";

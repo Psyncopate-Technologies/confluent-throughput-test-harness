@@ -92,8 +92,11 @@ var smallSchema = (RecordSchema)Schema.Parse(smallSchemaJson);
 var largeSchema = (RecordSchema)Schema.Parse(largeSchemaJson);
 
 // ── Build Test Definitions ───────────────────────────────────────────
-// Generate the full 28-test matrix (T1.1-T1.24 producers, T2.1-T2.4 consumers)
-// from TestSettings, then filter based on CLI arguments.
+// Generate the full 28-test matrix:
+//   T1.1-T1.8  drag-race producers (Produce/ProduceAsync × 4 format/size combos)
+//   T3.1-T3.16 business-realistic producers (acks=all + idempotence + Task.WhenAll windows)
+//   T2.1-T2.4  consumers
+// then filter based on CLI arguments.
 var allTests = TestDefinition.GetAll(testSettings);
 var testsToRun = allTests.AsEnumerable();
 
@@ -297,37 +300,34 @@ static void PrintHelp()
     AnsiConsole.MarkupLine("  Count-only:        Set DurationMinutes to null in appsettings.json");
     AnsiConsole.MarkupLine("  --duration N       Override the time limit to N minutes per run");
     AnsiConsole.WriteLine();
-    AnsiConsole.MarkupLine("[bold]Producer Tests (T1.x):[/]");
+    AnsiConsole.MarkupLine("[bold]Drag-Race Producer Tests (T1.x):[/]");
     AnsiConsole.MarkupLine("  [grey]Avro Small Specific (27 fields):[/]");
     AnsiConsole.MarkupLine("    T1.1   Produce / Single");
     AnsiConsole.MarkupLine("    T1.2   ProduceAsync / Single");
-    AnsiConsole.MarkupLine("    T1.3   ProduceAsync / BatchConfigurable");
-    AnsiConsole.MarkupLine("    T1.4   Produce / Batch5K");
-    AnsiConsole.MarkupLine("  [grey]Avro Small Generic (27 fields):[/]");
+    AnsiConsole.MarkupLine("  [grey]Avro Large Specific (106 fields):[/]");
+    AnsiConsole.MarkupLine("    T1.3   Produce / Single");
+    AnsiConsole.MarkupLine("    T1.4   ProduceAsync / Single");
+    AnsiConsole.MarkupLine("  [grey]JSON Small (27 fields):[/]");
     AnsiConsole.MarkupLine("    T1.5   Produce / Single");
     AnsiConsole.MarkupLine("    T1.6   ProduceAsync / Single");
-    AnsiConsole.MarkupLine("    T1.7   ProduceAsync / BatchConfigurable");
-    AnsiConsole.MarkupLine("    T1.8   Produce / Batch5K");
-    AnsiConsole.MarkupLine("  [grey]Avro Large Specific (106 fields):[/]");
-    AnsiConsole.MarkupLine("    T1.9   Produce / Single");
-    AnsiConsole.MarkupLine("    T1.10  ProduceAsync / Single");
-    AnsiConsole.MarkupLine("    T1.11  ProduceAsync / BatchConfigurable");
-    AnsiConsole.MarkupLine("    T1.12  Produce / Batch5K");
-    AnsiConsole.MarkupLine("  [grey]Avro Large Generic (106 fields):[/]");
-    AnsiConsole.MarkupLine("    T1.13  Produce / Single");
-    AnsiConsole.MarkupLine("    T1.14  ProduceAsync / Single");
-    AnsiConsole.MarkupLine("    T1.15  ProduceAsync / BatchConfigurable");
-    AnsiConsole.MarkupLine("    T1.16  Produce / Batch5K");
-    AnsiConsole.MarkupLine("  [grey]JSON Small (27 fields):[/]");
-    AnsiConsole.MarkupLine("    T1.17  Produce / Single");
-    AnsiConsole.MarkupLine("    T1.18  ProduceAsync / Single");
-    AnsiConsole.MarkupLine("    T1.19  ProduceAsync / BatchConfigurable");
-    AnsiConsole.MarkupLine("    T1.20  Produce / Batch5K");
     AnsiConsole.MarkupLine("  [grey]JSON Large (106 fields):[/]");
-    AnsiConsole.MarkupLine("    T1.21  Produce / Single");
-    AnsiConsole.MarkupLine("    T1.22  ProduceAsync / Single");
-    AnsiConsole.MarkupLine("    T1.23  ProduceAsync / BatchConfigurable");
-    AnsiConsole.MarkupLine("    T1.24  Produce / Batch5K");
+    AnsiConsole.MarkupLine("    T1.7   Produce / Single");
+    AnsiConsole.MarkupLine("    T1.8   ProduceAsync / Single");
+    AnsiConsole.WriteLine();
+    AnsiConsole.MarkupLine("[bold]Business-Realistic Producer Tests (T3.x):[/]");
+    AnsiConsole.MarkupLine("  [grey]acks=all + idempotence + ProduceAsync + Task.WhenAll[/]");
+    AnsiConsole.MarkupLine("  [grey]Avro Small (27 fields):[/]");
+    AnsiConsole.MarkupLine("    T3.1   Window-1    T3.2   Window-10");
+    AnsiConsole.MarkupLine("    T3.3   Window-50   T3.4   Window-100");
+    AnsiConsole.MarkupLine("  [grey]Avro Large (106 fields):[/]");
+    AnsiConsole.MarkupLine("    T3.5   Window-1    T3.6   Window-10");
+    AnsiConsole.MarkupLine("    T3.7   Window-50   T3.8   Window-100");
+    AnsiConsole.MarkupLine("  [grey]JSON Small (27 fields):[/]");
+    AnsiConsole.MarkupLine("    T3.9   Window-1    T3.10  Window-10");
+    AnsiConsole.MarkupLine("    T3.11  Window-50   T3.12  Window-100");
+    AnsiConsole.MarkupLine("  [grey]JSON Large (106 fields):[/]");
+    AnsiConsole.MarkupLine("    T3.13  Window-1    T3.14  Window-10");
+    AnsiConsole.MarkupLine("    T3.15  Window-50   T3.16  Window-100");
     AnsiConsole.WriteLine();
     AnsiConsole.MarkupLine("[bold]Consumer Tests (T2.x):[/]");
     AnsiConsole.MarkupLine("  T2.1  Consumer Avro Small");

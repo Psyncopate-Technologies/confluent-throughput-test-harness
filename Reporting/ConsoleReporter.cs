@@ -26,6 +26,7 @@ public static class ConsoleReporter
             .AddColumn("[bold]Test[/]")
             .AddColumn("[bold]API[/]")
             .AddColumn("[bold]Commit[/]")
+            .AddColumn("[bold]Window[/]", c => c.RightAligned())
             .AddColumn("[bold]RecordType[/]")
             .AddColumn("[bold]Run[/]", c => c.RightAligned())
             .AddColumn("[bold]Messages[/]", c => c.RightAligned())
@@ -47,6 +48,7 @@ public static class ConsoleReporter
                     $"[yellow]{r.TestId}[/] {r.TestName}",
                     r.ProduceApi,
                     r.CommitStrategy,
+                    r.ConcurrencyWindow > 0 ? r.ConcurrencyWindow.ToString() : "-",
                     r.RecordType,
                     r.RunNumber.ToString(),
                     r.MessageCount.ToString("N0"),
@@ -68,6 +70,7 @@ public static class ConsoleReporter
                     $"[bold green]{avg.TestId}[/] [bold]{avg.TestName}[/]",
                     $"[bold]{avg.ProduceApi}[/]",
                     $"[bold]{avg.CommitStrategy}[/]",
+                    avg.ConcurrencyWindow > 0 ? $"[bold]{avg.ConcurrencyWindow}[/]" : "[bold]-[/]",
                     $"[bold]{avg.RecordType}[/]",
                     "[bold]AVG[/]",
                     $"[bold]{avg.MessageCount:N0}[/]",
@@ -95,6 +98,7 @@ public static class ConsoleReporter
             .AddColumn("[bold]Test[/]")
             .AddColumn("[bold]API[/]")
             .AddColumn("[bold]Commit[/]")
+            .AddColumn("[bold]Window[/]", c => c.RightAligned())
             .AddColumn("[bold]RecordType[/]")
             .AddColumn("[bold]Msgs/sec[/]", c => c.RightAligned())
             .AddColumn("[bold]MB/sec[/]", c => c.RightAligned())
@@ -109,6 +113,7 @@ public static class ConsoleReporter
                     $"{avg.TestId} {avg.TestName.Replace(" (Avg)", "")}",
                     avg.ProduceApi,
                     avg.CommitStrategy,
+                    avg.ConcurrencyWindow > 0 ? avg.ConcurrencyWindow.ToString() : "-",
                     avg.RecordType,
                     avg.MessagesPerSecond.ToString("N0"),
                     avg.MegabytesPerSecond.ToString("F2"),

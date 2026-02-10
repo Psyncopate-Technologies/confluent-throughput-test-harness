@@ -32,6 +32,7 @@ public class TestSuite
             ProduceApi = runs[0].ProduceApi,
             CommitStrategy = runs[0].CommitStrategy,
             RecordType = runs[0].RecordType,
+            ConcurrencyWindow = runs[0].ConcurrencyWindow,
             RunNumber = 0,
             MessageCount = (int)runs.Average(r => r.MessageCount),
             TotalBytes = (long)runs.Average(r => r.TotalBytes),

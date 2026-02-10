@@ -1,53 +1,55 @@
 # Confluent Kafka Throughput Test Harness
 
-A .NET 10 console application that benchmarks **Avro vs JSON** serialization throughput against a Confluent Cloud Kafka cluster. The harness measures producer and consumer performance across **5 dimensions** -- serialization format, payload size, record type, produce API, and commit strategy -- producing detailed metrics including messages/sec, MB/sec, average latency, peak CPU, and peak memory usage.
+A .NET 10 console application that benchmarks **Avro vs JSON** serialization throughput against a Confluent Cloud Kafka cluster. The harness includes two producer test suites -- **drag-race tests** (T1.x) comparing raw Produce vs ProduceAsync throughput, and **business-realistic tests** (T3.x) modeling production patterns with `acks=all`, idempotence, and `Task.WhenAll` concurrency windows -- plus consumer tests (T2.x). Metrics include messages/sec, MB/sec, average latency, peak CPU, and peak memory usage.
 
 ## Test Matrix
 
-The harness runs **28 tests**: 24 producer tests (T1.1--T1.24) and 4 consumer tests (T2.1--T2.4).
+The harness runs **28 tests**: 8 drag-race producer tests (T1.1--T1.8), 16 business-realistic producer tests (T3.1--T3.16), and 4 consumer tests (T2.1--T2.4).
 
-Each test run uses **hybrid termination**: it stops when **either** the message count limit (default 100,000) or the time limit (default 3 minutes) is reached -- whichever comes first. Fast tests (e.g., Batch5K) finish in seconds after hitting 100K messages; slow tests (e.g., Single commit) run for the full 3 minutes. Each producer test runs 3 times; each consumer test runs 3 times.
+Each test run uses **hybrid termination**: it stops when **either** the message count limit (default 100,000) or the time limit (default 1 minute) is reached -- whichever comes first. Each test runs 3 times by default.
 
-### Five Test Dimensions (Producers)
+### Drag-Race Producer Tests (T1.x)
 
-| Dimension | Values |
-|---|---|
-| **Serialization** | Avro, JSON |
-| **Payload Size** | Small (27 fields), Large (106 fields) |
-| **Record Type** | `SpecificRecord`, `GenericRecord` (Avro only); N/A for JSON |
-| **Produce API** | `Produce` (sync fire-and-forget with delivery handler), `ProduceAsync` (await each broker ack) |
-| **Commit Strategy** | Single (flush after every message), BatchConfigurable (flush every `BatchCommitSize` msgs, default 5000), Batch5K (flush every 5,000 msgs) |
-
-### Producer Tests (T1.x)
-
-Each group of 4 tests shares the same serialization/payload/record-type combination and varies only by produce API and commit strategy.
+Compare raw `Produce` (fire-and-forget) vs `ProduceAsync` (await each) throughput across 4 format/size combinations. Uses `acks=Leader` and `EnableIdempotence=false` for maximum speed. Avro uses SpecificRecord only.
 
 | ID | Format | Payload | Record Type | Produce API | Commit Strategy | Topic |
 |----|--------|---------|-------------|-------------|-----------------|-------|
 | **T1.1** | Avro | Small | SpecificRecord | Produce | Single | `test-avro-small-specificrecord` |
 | **T1.2** | Avro | Small | SpecificRecord | ProduceAsync | Single | `test-avro-small-specificrecord` |
-| **T1.3** | Avro | Small | SpecificRecord | ProduceAsync | BatchConfigurable | `test-avro-small-specificrecord` |
-| **T1.4** | Avro | Small | SpecificRecord | Produce | Batch5K | `test-avro-small-specificrecord` |
-| **T1.5** | Avro | Small | GenericRecord | Produce | Single | `test-avro-small-genericrecord` |
-| **T1.6** | Avro | Small | GenericRecord | ProduceAsync | Single | `test-avro-small-genericrecord` |
-| **T1.7** | Avro | Small | GenericRecord | ProduceAsync | BatchConfigurable | `test-avro-small-genericrecord` |
-| **T1.8** | Avro | Small | GenericRecord | Produce | Batch5K | `test-avro-small-genericrecord` |
-| **T1.9** | Avro | Large | SpecificRecord | Produce | Single | `test-avro-large-specificrecord` |
-| **T1.10** | Avro | Large | SpecificRecord | ProduceAsync | Single | `test-avro-large-specificrecord` |
-| **T1.11** | Avro | Large | SpecificRecord | ProduceAsync | BatchConfigurable | `test-avro-large-specificrecord` |
-| **T1.12** | Avro | Large | SpecificRecord | Produce | Batch5K | `test-avro-large-specificrecord` |
-| **T1.13** | Avro | Large | GenericRecord | Produce | Single | `test-avro-large-genericrecord` |
-| **T1.14** | Avro | Large | GenericRecord | ProduceAsync | Single | `test-avro-large-genericrecord` |
-| **T1.15** | Avro | Large | GenericRecord | ProduceAsync | BatchConfigurable | `test-avro-large-genericrecord` |
-| **T1.16** | Avro | Large | GenericRecord | Produce | Batch5K | `test-avro-large-genericrecord` |
-| **T1.17** | JSON | Small | N/A | Produce | Single | `test-json-small` |
-| **T1.18** | JSON | Small | N/A | ProduceAsync | Single | `test-json-small` |
-| **T1.19** | JSON | Small | N/A | ProduceAsync | BatchConfigurable | `test-json-small` |
-| **T1.20** | JSON | Small | N/A | Produce | Batch5K | `test-json-small` |
-| **T1.21** | JSON | Large | N/A | Produce | Single | `test-json-large` |
-| **T1.22** | JSON | Large | N/A | ProduceAsync | Single | `test-json-large` |
-| **T1.23** | JSON | Large | N/A | ProduceAsync | BatchConfigurable | `test-json-large` |
-| **T1.24** | JSON | Large | N/A | Produce | Batch5K | `test-json-large` |
+| **T1.3** | Avro | Large | SpecificRecord | Produce | Single | `test-avro-large-specificrecord` |
+| **T1.4** | Avro | Large | SpecificRecord | ProduceAsync | Single | `test-avro-large-specificrecord` |
+| **T1.5** | JSON | Small | N/A | Produce | Single | `test-json-small` |
+| **T1.6** | JSON | Small | N/A | ProduceAsync | Single | `test-json-small` |
+| **T1.7** | JSON | Large | N/A | Produce | Single | `test-json-large` |
+| **T1.8** | JSON | Large | N/A | ProduceAsync | Single | `test-json-large` |
+
+### Business-Realistic Producer Tests (T3.x)
+
+Model production event-driven patterns with guaranteed delivery. All T3.x tests use:
+- **`ProduceAsync`** with `acks=all` and `enable.idempotence=true`
+- **`Task.WhenAll` concurrency windows**: fire N `ProduceAsync` calls concurrently, await all, check each `DeliveryResult` for errors
+- **SpecificRecord** for Avro (matching client's source-generated `ISpecificRecord` classes)
+
+Window sizes 1, 10, 50, and 100 simulate different levels of concurrent in-flight messages, from single-message sequential processing to 100 concurrent background tasks.
+
+| ID | Format | Payload | Window | Name |
+|----|--------|---------|--------|------|
+| **T3.1** | Avro | Small | 1 | Business Avro Small Window-1 |
+| **T3.2** | Avro | Small | 10 | Business Avro Small Window-10 |
+| **T3.3** | Avro | Small | 50 | Business Avro Small Window-50 |
+| **T3.4** | Avro | Small | 100 | Business Avro Small Window-100 |
+| **T3.5** | Avro | Large | 1 | Business Avro Large Window-1 |
+| **T3.6** | Avro | Large | 10 | Business Avro Large Window-10 |
+| **T3.7** | Avro | Large | 50 | Business Avro Large Window-50 |
+| **T3.8** | Avro | Large | 100 | Business Avro Large Window-100 |
+| **T3.9** | JSON | Small | 1 | Business JSON Small Window-1 |
+| **T3.10** | JSON | Small | 10 | Business JSON Small Window-10 |
+| **T3.11** | JSON | Small | 50 | Business JSON Small Window-50 |
+| **T3.12** | JSON | Small | 100 | Business JSON Small Window-100 |
+| **T3.13** | JSON | Large | 1 | Business JSON Large Window-1 |
+| **T3.14** | JSON | Large | 10 | Business JSON Large Window-10 |
+| **T3.15** | JSON | Large | 50 | Business JSON Large Window-50 |
+| **T3.16** | JSON | Large | 100 | Business JSON Large Window-100 |
 
 ### Consumer Tests (T2.x)
 
@@ -55,10 +57,10 @@ Consumer tests read from the topics populated by the producer tests. Each consum
 
 | ID | Format | Payload | Topic | Runs |
 |----|--------|---------|-------|------|
-| **T2.1** | Avro | Small (27 fields) | `test-avro-small` | 5 |
-| **T2.2** | Avro | Large (106 fields) | `test-avro-large` | 5 |
-| **T2.3** | JSON | Small (27 fields) | `test-json-small` | 5 |
-| **T2.4** | JSON | Large (106 fields) | `test-json-large` | 5 |
+| **T2.1** | Avro | Small (27 fields) | `test-avro-small` | 3 |
+| **T2.2** | Avro | Large (106 fields) | `test-avro-large` | 3 |
+| **T2.3** | JSON | Small (27 fields) | `test-json-small` | 3 |
+| **T2.4** | JSON | Large (106 fields) | `test-json-large` | 3 |
 
 ## Schemas
 
@@ -295,7 +297,8 @@ Create `appsettings.Development.json` in the project root:
 | `Test` | `MessageCount` | `100000` | Max messages per test run (hybrid mode) |
 | `Test` | `DurationMinutes` | `3` | Max minutes per test run (hybrid mode); set to `null` for count-only mode |
 | `Test` | `ProducerRuns` | `3` | Number of runs per producer test |
-| `Test` | `ConsumerRuns` | `5` | Number of runs per consumer test |
+| `Test` | `ConsumerRuns` | `3` | Number of runs per consumer test |
+| `Test` | `BusinessRealisticRuns` | `3` | Number of runs per T3.x business-realistic test |
 | `Test` | `BatchCommitSize` | `5000` | Flush interval for `BatchConfigurable` commit strategy |
 | `Test` | `AvroSmallTopic` | `test-avro-small` | Consumer topic for small Avro payloads |
 | `Test` | `AvroLargeTopic` | `test-avro-large` | Consumer topic for large Avro payloads |
@@ -318,7 +321,7 @@ dotnet build
 
 | Flag | Description |
 |------|-------------|
-| `--producer-only` | Run only producer tests (T1.1--T1.24) |
+| `--producer-only` | Run only producer tests (T1.x and T3.x) |
 | `--consumer-only` | Run only consumer tests (T2.1--T2.4) |
 | `--test <ID>` | Run a single test by ID (e.g., `T1.1`, `T2.3`) |
 | `--test <start>-<end>` | Run a range of tests (e.g., `T1.1-T1.8`) |
@@ -329,25 +332,25 @@ dotnet build
 ### Execution Scenarios
 
 ```bash
-# ── Hybrid Mode (default: 100K msgs or 3 min, whichever first) ────
+# ── Hybrid Mode (default: 100K msgs or 1 min, whichever first) ────
 
-# Run all 28 tests (T1.1-T1.24 producers, then T2.1-T2.4 consumers)
+# Run all 28 tests (T1.x drag-race, T3.x business-realistic, T2.x consumers)
 dotnet run
 
-# Run only the 24 producer tests
+# Run only producer tests (T1.x + T3.x)
 dotnet run -- --producer-only
 
 # Run only the 4 consumer tests (topics must already contain messages)
 dotnet run -- --consumer-only
 
-# Run a single producer test
+# Run a single drag-race test
 dotnet run -- --test T1.1
 
-# Run a range of tests (e.g., all Avro Small Specific + Generic)
-dotnet run -- --test T1.1-T1.8
+# Run all business-realistic Avro Small tests (windows 1, 10, 50, 100)
+dotnet run -- --test T3.1-T3.4
 
 # Run specific tests by comma-separated list
-dotnet run -- --test T1.1,T1.4,T1.8
+dotnet run -- --test T1.1,T3.1,T3.4
 
 # Override the time limit to 10 minutes per run
 dotnet run -- --duration 10
@@ -374,23 +377,26 @@ dotnet run -- --help
 2. Both Avro schemas are parsed from the `Schemas/` directory. Custom logical types (`varchar`, `char`) are registered to handle the freight schema.
 3. CLI arguments are parsed to determine which tests to run and whether to override the duration.
 4. The full 28-test matrix is generated from `TestDefinition.GetAll()`, then filtered by CLI flags (`--test`, `--producer-only`, `--consumer-only`).
-5. **Producer tests (T1.1--T1.24)** run first, each executing the configured number of runs (default 3). Each run terminates when either the message count limit or time limit is reached, whichever comes first. Tests are routed to the correct setup method based on their format/size/record-type combination:
-   - **Avro SpecificRecord**: Uses `AvroSerializer<FreightSmallSpecific>` or `AvroSerializer<FreightLargeSpecific>` with hand-written `ISpecificRecord` implementations.
-   - **Avro GenericRecord**: Uses `AvroSerializer<GenericRecord>` with the parsed `.avsc` schemas.
+5. **Drag-race producer tests (T1.1--T1.8)** run first with `acks=Leader` and `EnableIdempotence=false`:
+   - **Avro SpecificRecord**: Uses `AvroSerializer<T>` with source-generated `ISpecificRecord` implementations.
    - **JSON**: Uses `JsonSerializer<T>` with POCO classes.
-   - For `Produce` (fire-and-forget) tests, async serializers are wrapped with `.AsSyncOverAsync()`.
-   - For `ProduceAsync` tests, async serializers are used directly (`IAsyncSerializer<T>`).
+   - For `Produce` (fire-and-forget), async serializers are wrapped with `.AsSyncOverAsync()`.
+   - For `ProduceAsync`, async serializers are used directly.
    - The unified `RunProducerLoopAsync` handles produce-API branching and commit-strategy flushing.
-6. **Consumer tests (T2.1--T2.4)** run next, each consuming messages from their configured topics with the same hybrid termination logic. Each run uses a unique consumer group (`throughput-test-{TestId}-run-{N}-{guid}`) to read from offset 0.
-7. A formatted results table is printed to the console with per-run and averaged metrics, including API, Commit Strategy, and Record Type columns.
-8. Results are exported to a timestamped CSV file and an interactive HTML report in `bin/Debug/net10.0/results/`.
+6. **Business-realistic producer tests (T3.1--T3.16)** run next with `acks=All` and `EnableIdempotence=true`:
+   - Fire N `ProduceAsync` calls concurrently via `Task.WhenAll` (window sizes 1, 10, 50, 100).
+   - Each `DeliveryResult` is checked for errors after the await.
+   - `RunConcurrencyWindowLoopAsync` handles the windowed produce pattern.
+7. **Consumer tests (T2.1--T2.4)** run last, each consuming messages from their configured topics with the same hybrid termination logic. Each run uses a unique consumer group (`throughput-test-{TestId}-run-{N}-{guid}`) to read from offset 0.
+8. A formatted results table is printed to the console with per-run and averaged metrics, including API, Commit Strategy, Concurrency Window, and Record Type columns.
+9. Results are exported to a timestamped CSV file and an interactive HTML report in `bin/Debug/net10.0/results/`.
 
 ### Test Output
 
 The console output includes:
 - Per-run metrics for each test (msgs/sec, MB/sec, elapsed time, message count, errors)
 - Averaged metrics per test
-- A summary comparison table across all tests (with Produce API, Commit Strategy, and Record Type columns)
+- A summary comparison table across all tests (with Produce API, Commit Strategy, Concurrency Window, and Record Type columns)
 
 All output files are written to the `results/` directory under the build output (`bin/Debug/net10.0/results/`):
 
@@ -400,9 +406,9 @@ All output files are written to the `results/` directory under the build output 
 | `throughput-report-YYYYMMDD-HHmmss.html` | HTML | Interactive Chart.js report (opens in any browser) |
 
 The HTML report includes:
-- **Summary table** with all metrics for every test, including API, Commit Strategy, and Record Type
+- **Summary table** with all metrics for every test, including API, Commit Strategy, Concurrency Window, and Record Type
 - **Bar charts** comparing msgs/sec and MB/sec across all tests
-- **Time-series line charts** showing instantaneous throughput over time (when a time limit is configured), grouped by producer and consumer tests
+- **Time-series line charts** showing instantaneous throughput over time (when a time limit is configured), grouped by drag-race (T1.x), business-realistic (T3.x), and consumer (T2.x) tests
 - Color-coded by test for easy visual comparison
 
 ## Project Structure
@@ -440,15 +446,15 @@ confluent-throughput-test-harness/
 │   ├── JsonSmallDataFactory.cs                 # POCO builder (27 fields)
 │   └── JsonLargeDataFactory.cs                 # POCO builder (106 fields)
 ├── Tests/
-│   ├── TestDefinition.cs                       # Enums, 28-test matrix generation
-│   ├── TestResult.cs                           # Per-run metrics (incl. API, Commit, RecordType)
+│   ├── TestDefinition.cs                       # Enums, 28-test matrix generation (T1.x + T3.x + T2.x)
+│   ├── TestResult.cs                           # Per-run metrics (incl. API, Commit, Window, RecordType)
 │   ├── TestSuite.cs                            # Aggregation and averages
 │   └── ThroughputSample.cs                     # Time-series throughput snapshot
 ├── Metrics/
 │   ├── ResourceMonitor.cs                      # CPU/memory sampling (250ms interval)
 │   └── ByteCountingDeserializer.cs             # Wraps deserializers for byte tracking
 ├── Runners/
-│   ├── ProducerTestRunner.cs                   # Unified producer benchmark (all 5 dimensions)
+│   ├── ProducerTestRunner.cs                   # Producer benchmark (drag-race + business-realistic)
 │   └── ConsumerTestRunner.cs                   # Consumer benchmark (Avro + JSON)
 └── Reporting/
     ├── ConsoleReporter.cs                      # Spectre.Console formatted tables
@@ -458,13 +464,13 @@ confluent-throughput-test-harness/
 
 ## Design Decisions
 
-- **SpecificRecord + GenericRecord for Avro**: The freight schema uses custom logical types (`varchar`, `char`) that are incompatible with `avrogen` code generation. The `ISpecificRecord` implementations (`FreightSmallSpecific`, `FreightLargeSpecific`) were generated by a .NET Source Generator and enable SpecificRecord benchmarking alongside GenericRecord, using the same `.avsc` schemas and custom logical type registrations.
+- **SpecificRecord for Avro**: The freight schema uses custom logical types (`varchar`, `char`) that are incompatible with `avrogen` code generation. The `ISpecificRecord` implementations (`FreightSmallSpecific`, `FreightLargeSpecific`) were generated by a .NET Source Generator, using the same `.avsc` schemas and custom logical type registrations.
 - **POCO classes for JSON**: The `Confluent.SchemaRegistry.Serdes.Json` serializer works with plain C# classes annotated with `System.Text.Json` attributes.
-- **Produce vs ProduceAsync**: The synchronous `Produce()` with a delivery callback avoids `Task` allocation overhead at high message volumes. `ProduceAsync()` awaits each broker acknowledgment, giving different throughput characteristics. Both are benchmarked.
-- **Three commit strategies**: Single (flush every message) measures worst-case latency. BatchConfigurable (flush every `BatchCommitSize` messages) is tunable. Batch5K (flush every 5,000) provides a fixed baseline.
-- **Unified produce loop**: `RunProducerLoopAsync<TValue>` handles all 5 dimensions in a single generic method. The caller sets up the producer with the right serializers; the loop branches on `ProduceApi` and flushes per the `batchSize` derived from `CommitStrategy`.
-- **Separate producer topics per record type**: Avro SpecificRecord and GenericRecord tests write to separate topics (e.g., `test-avro-small-specificrecord` vs `test-avro-small-genericrecord`) to avoid cross-contamination of benchmark data.
-- **Throughput-optimized producer defaults**: `acks=1` (Leader), `linger.ms=100`, `batch.size=1000000` (1 MB), and LZ4 compression maximize batching and reduce round-trips to the broker.
+- **Two producer test suites**: Drag-race tests (T1.x) compare raw `Produce` vs `ProduceAsync` throughput with `acks=Leader`. Business-realistic tests (T3.x) model production patterns with `acks=All`, `EnableIdempotence=true`, and `Task.WhenAll` concurrency windows.
+- **Concurrency window pattern (T3.x)**: Fire N `ProduceAsync` calls concurrently, await all with `Task.WhenAll`, then check each `DeliveryResult` for errors. Window sizes 1, 10, 50, and 100 simulate different levels of concurrency, from single sequential messages to 100 concurrent in-flight requests.
+- **Unified produce loop (T1.x)**: `RunProducerLoopAsync<TValue>` handles drag-race tests in a single generic method. The caller sets up the producer with the right serializers; the loop branches on `ProduceApi` and flushes per the `batchSize` derived from `CommitStrategy`.
+- **Separate producer topics per record type**: Avro SpecificRecord tests write to dedicated topics (e.g., `test-avro-small-specificrecord`) to avoid cross-contamination of benchmark data.
+- **Throughput-optimized drag-race defaults**: `acks=1` (Leader), `linger.ms=100`, `batch.size=1000000` (1 MB), and LZ4 compression maximize batching and reduce round-trips to the broker. Business-realistic tests use `acks=All` with idempotence for guaranteed delivery.
 - **Pre-registered schemas**: All schemas are registered ahead of time. Serializers use `AutoRegisterSchemas = false` and `UseLatestVersion = true` to look up schemas by subject at runtime.
 - **Integer keys**: All messages use sequential integer keys (1, 2, 3, ...) serialized with `AvroSerializer<int>` for Avro topics or `JsonSerializer<T>` / default `Serializers.Int32` for JSON topics.
 - **Per-message uniqueness**: Each message gets a unique `__test_seq` (sequence number) and `__test_ts` (ISO timestamp) stamped into the value before every produce call. This proves the serializer is doing real work on every message. One record template is created and mutated in-place to avoid object construction overhead.

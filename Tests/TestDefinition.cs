@@ -28,8 +28,9 @@ public enum ProduceApi { Produce, ProduceAsync }
 /// Single = flush after every message.
 /// BatchConfigurable = flush every BatchCommitSize messages (from config).
 /// Batch5K = flush every 5,000 messages (hardcoded).
+/// ConcurrencyWindow = fire N ProduceAsync calls, await all with Task.WhenAll.
 /// </summary>
-public enum CommitStrategy { Single, BatchConfigurable, Batch5K }
+public enum CommitStrategy { Single, BatchConfigurable, Batch5K, ConcurrencyWindow }
 
 /// <summary>GenericRecord or SpecificRecord for Avro; NotApplicable for JSON.</summary>
 public enum RecordType { GenericRecord, SpecificRecord, NotApplicable }
@@ -37,12 +38,17 @@ public enum RecordType { GenericRecord, SpecificRecord, NotApplicable }
 /// <summary>
 /// Represents a single test in the benchmark matrix.
 ///
-/// The producer matrix (T1.1–T1.24) covers every combination of:
+/// Drag-race producer tests (T1.1–T1.8):
 ///   - Serialization: Avro or JSON
 ///   - Payload Size:  Small (27 fields) or Large (106 fields)
-///   - Record Type:   SpecificRecord / GenericRecord (Avro) or N/A (JSON)
+///   - Record Type:   SpecificRecord (Avro) or N/A (JSON)
 ///   - Produce API:   Produce (fire-and-forget) or ProduceAsync (await each)
-///   - Commit Strategy: Single, BatchConfigurable, or Batch5K
+///   - Commit Strategy: Single (flush every message)
+///
+/// Business-realistic producer tests (T3.1–T3.16):
+///   - ProduceAsync + acks=all + enable.idempotence=true
+///   - Task.WhenAll concurrency windows: 1, 10, 50, 100
+///   - 4 format/size combos × 4 windows = 16 tests
 ///
 /// Consumer tests (T2.1–T2.4) remain unchanged.
 /// </summary>
@@ -60,10 +66,12 @@ public class TestDefinition
     public int MessageCount { get; init; }
     public TimeSpan? Duration { get; init; }
     public int Runs { get; init; }
+    public int ConcurrencyWindow { get; init; }
 
     /// <summary>
     /// Builds the full test matrix from the provided settings.
-    /// Producer tests (T1.1–T1.24) run first and populate the topics;
+    /// Drag-race producer tests (T1.1–T1.8) run first and populate the topics;
+    /// Business-realistic tests (T3.1–T3.16) use acks=all + idempotence + concurrency windows;
     /// Consumer tests (T2.1–T2.4) then read from those topics.
     /// </summary>
     public static List<TestDefinition> GetAll(Config.TestSettings settings)
@@ -73,16 +81,15 @@ public class TestDefinition
             : null;
 
         var producerRuns = settings.ProducerRuns;
+        var businessRuns = settings.BusinessRealisticRuns;
         var consumerRuns = settings.ConsumerRuns;
 
-        // ── Producer tests (T1.1–T1.24) ────────────────────────────────
-        // The 4 produce-api / commit-strategy combinations, in matrix order.
-        var apiStrategyCombos = new (ProduceApi Api, CommitStrategy Strategy)[]
+        // ── Drag-race producer tests (T1.1–T1.8) ────────────────────────
+        // Produce and ProduceAsync with Single commit only. Avro uses SpecificRecord only.
+        var apiCombos = new[]
         {
-            (ProduceApi.Produce,      CommitStrategy.Single),
-            (ProduceApi.ProduceAsync,  CommitStrategy.Single),
-            (ProduceApi.ProduceAsync,  CommitStrategy.BatchConfigurable),
-            (ProduceApi.Produce,      CommitStrategy.Batch5K),
+            ProduceApi.Produce,
+            ProduceApi.ProduceAsync,
         };
 
         var producerTests = new List<TestDefinition>();
@@ -92,35 +99,72 @@ public class TestDefinition
         {
             foreach (var size in new[] { PayloadSize.Small, PayloadSize.Large })
             {
-                var recordTypes = format == SerializationFormat.Avro
-                    ? new[] { RecordType.SpecificRecord, RecordType.GenericRecord }
-                    : [RecordType.NotApplicable];
+                var recordType = format == SerializationFormat.Avro
+                    ? RecordType.SpecificRecord
+                    : RecordType.NotApplicable;
 
-                foreach (var recordType in recordTypes)
+                string topic = GetProducerTopic(settings, format, size, recordType);
+
+                foreach (var api in apiCombos)
                 {
-                    string topic = GetProducerTopic(settings, format, size, recordType);
+                    string name = BuildProducerName(format, size, recordType, api, CommitStrategy.Single);
 
-                    foreach (var (api, strategy) in apiStrategyCombos)
+                    producerTests.Add(new TestDefinition
                     {
-                        string name = BuildProducerName(format, size, recordType, api, strategy);
+                        Id = $"T1.{testNum}",
+                        Name = name,
+                        Type = TestType.Producer,
+                        Format = format,
+                        Size = size,
+                        RecordType = recordType,
+                        ProduceApi = api,
+                        CommitStrategy = CommitStrategy.Single,
+                        Topic = topic,
+                        MessageCount = settings.MessageCount,
+                        Duration = duration,
+                        Runs = producerRuns,
+                    });
+                    testNum++;
+                }
+            }
+        }
 
-                        producerTests.Add(new TestDefinition
-                        {
-                            Id = $"T1.{testNum}",
-                            Name = name,
-                            Type = TestType.Producer,
-                            Format = format,
-                            Size = size,
-                            RecordType = recordType,
-                            ProduceApi = api,
-                            CommitStrategy = strategy,
-                            Topic = topic,
-                            MessageCount = settings.MessageCount,
-                            Duration = duration,
-                            Runs = producerRuns,
-                        });
-                        testNum++;
-                    }
+        // ── Business-realistic producer tests (T3.1–T3.16) ──────────────
+        // ProduceAsync + acks=all + idempotence + Task.WhenAll concurrency windows.
+        var windows = new[] { 1, 10, 50, 100 };
+        int t3Num = 1;
+
+        foreach (var format in new[] { SerializationFormat.Avro, SerializationFormat.Json })
+        {
+            foreach (var size in new[] { PayloadSize.Small, PayloadSize.Large })
+            {
+                var recordType = format == SerializationFormat.Avro
+                    ? RecordType.SpecificRecord
+                    : RecordType.NotApplicable;
+
+                string topic = GetProducerTopic(settings, format, size, recordType);
+
+                foreach (var window in windows)
+                {
+                    string name = BuildBusinessName(format, size, window);
+
+                    producerTests.Add(new TestDefinition
+                    {
+                        Id = $"T3.{t3Num}",
+                        Name = name,
+                        Type = TestType.Producer,
+                        Format = format,
+                        Size = size,
+                        RecordType = recordType,
+                        ProduceApi = ProduceApi.ProduceAsync,
+                        CommitStrategy = CommitStrategy.ConcurrencyWindow,
+                        Topic = topic,
+                        MessageCount = settings.MessageCount,
+                        Duration = duration,
+                        Runs = businessRuns,
+                        ConcurrencyWindow = window,
+                    });
+                    t3Num++;
                 }
             }
         }
@@ -207,9 +251,16 @@ public class TestDefinition
             CommitStrategy.Single            => "Single",
             CommitStrategy.BatchConfigurable => "BatchConfig",
             CommitStrategy.Batch5K           => "Batch5K",
+            CommitStrategy.ConcurrencyWindow => "Window",
             _ => strategy.ToString()
         };
 
         return $"Producer {format} {size}{recordLabel} {api} {strategyLabel}";
+    }
+
+    private static string BuildBusinessName(
+        SerializationFormat format, PayloadSize size, int window)
+    {
+        return $"Business {format} {size} Window-{window}";
     }
 }
