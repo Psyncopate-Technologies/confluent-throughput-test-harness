@@ -22,6 +22,7 @@ using ConfluentThroughputTestHarness.DataFactories;
 using ConfluentThroughputTestHarness.Metrics;
 using ConfluentThroughputTestHarness.Models;
 using ConfluentThroughputTestHarness.Models.AvroSpecific;
+using ConfluentThroughputTestHarness.Reporting;
 using ConfluentThroughputTestHarness.Tests;
 
 namespace ConfluentThroughputTestHarness.Runners;
@@ -33,19 +34,22 @@ public class ProducerTestRunner
     private readonly TestSettings _testSettings;
     private readonly RecordSchema _smallSchema;
     private readonly RecordSchema _largeSchema;
+    private readonly DeliveryLogger? _deliveryLogger;
 
     public ProducerTestRunner(
         KafkaSettings kafkaSettings,
         SchemaRegistrySettings srSettings,
         TestSettings testSettings,
         RecordSchema smallSchema,
-        RecordSchema largeSchema)
+        RecordSchema largeSchema,
+        DeliveryLogger? deliveryLogger = null)
     {
         _kafkaSettings = kafkaSettings;
         _srSettings = srSettings;
         _testSettings = testSettings;
         _smallSchema = smallSchema;
         _largeSchema = largeSchema;
+        _deliveryLogger = deliveryLogger;
     }
 
     /// <summary>
@@ -295,7 +299,17 @@ public class ProducerTestRunner
             foreach (var dr in results)
             {
                 if (dr.Status == PersistenceStatus.NotPersisted)
+                {
                     Interlocked.Increment(ref errors);
+                    _deliveryLogger?.LogError(test.Id, test.Name, runNumber,
+                        dr.Key, dr.Partition.Value, dr.Offset.Value,
+                        "NotPersisted", dr.Status.ToString());
+                }
+                else
+                {
+                    _deliveryLogger?.LogSuccess(test.Id, test.Name, runNumber,
+                        dr.Key, dr.Partition.Value, dr.Offset.Value);
+                }
             }
 
             if (onProgress != null && sw.Elapsed - lastProgressReport >= TimeSpan.FromSeconds(1))
@@ -360,14 +374,24 @@ public class ProducerTestRunner
             {
                 var result = await producer.ProduceAsync(test.Topic, message);
                 if (result.Status == PersistenceStatus.NotPersisted)
+                {
                     Interlocked.Increment(ref errors);
+                    _deliveryLogger?.LogError(test.Id, test.Name, runNumber,
+                        result.Key, result.Partition.Value, result.Offset.Value,
+                        "NotPersisted", result.Status.ToString());
+                }
             }
             else
             {
                 producer.Produce(test.Topic, message, dr =>
                 {
                     if (dr.Error.IsError)
+                    {
                         Interlocked.Increment(ref errors);
+                        _deliveryLogger?.LogError(test.Id, test.Name, runNumber,
+                            dr.Key, dr.Partition.Value, dr.Offset.Value,
+                            dr.Error.Code.ToString(), dr.Error.Reason);
+                    }
                 });
             }
 

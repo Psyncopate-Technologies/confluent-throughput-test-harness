@@ -171,7 +171,8 @@ AnsiConsole.WriteLine();
 // needs the parsed Avro schemas to build GenericRecords; the ConsumerTestRunner
 // does not because it discovers schemas from Schema Registry during deserialization.
 var suite = new TestSuite { StartedAt = DateTime.UtcNow };
-var producerRunner = new ProducerTestRunner(kafkaSettings, srSettings, testSettings, smallSchema, largeSchema);
+var deliveryLogger = new DeliveryLogger();
+var producerRunner = new ProducerTestRunner(kafkaSettings, srSettings, testSettings, smallSchema, largeSchema, deliveryLogger);
 var consumerRunner = new ConsumerTestRunner(kafkaSettings, srSettings);
 
 // Iterate through each test, executing the configured number of runs.
@@ -268,16 +269,24 @@ suite.CompletedAt = DateTime.UtcNow;
 ConsoleReporter.PrintResults(suite);
 
 var timestamp = DateTime.UtcNow.ToString("yyyyMMdd-HHmmss");
-var csvPath = Path.Combine(AppContext.BaseDirectory, "results",
-    $"throughput-results-{timestamp}.csv");
+var resultsDir = Path.Combine(AppContext.BaseDirectory, "results");
+var csvPath = Path.Combine(resultsDir, $"throughput-results-{timestamp}.csv");
 await CsvReporter.ExportAsync(suite, csvPath);
+
+// Export delivery logs (JSONL for external tools, .js for HTML report)
+var deliveryLogJsFilename = $"delivery-logs-{timestamp}.js";
+if (deliveryLogger.Count > 0)
+{
+    var jsonlPath = Path.Combine(resultsDir, $"delivery-logs-{timestamp}.jsonl");
+    var jsPath = Path.Combine(resultsDir, deliveryLogJsFilename);
+    await deliveryLogger.WriteAsync(jsonlPath, jsPath);
+}
 
 // Generate interactive HTML chart report (especially useful for duration-mode runs
 // where time-series throughput data is collected).
 var mode = testSettings.DurationMinutes.HasValue ? "Duration" : "Count";
-var htmlPath = Path.Combine(AppContext.BaseDirectory, "results",
-    $"throughput-report-{timestamp}.html");
-await HtmlChartReporter.ExportAsync(suite, htmlPath, mode);
+var htmlPath = Path.Combine(resultsDir, $"throughput-report-{timestamp}.html");
+await HtmlChartReporter.ExportAsync(suite, htmlPath, mode, deliveryLogJsFilename);
 
 // ── Help ─────────────────────────────────────────────────────────────
 static void PrintHelp()

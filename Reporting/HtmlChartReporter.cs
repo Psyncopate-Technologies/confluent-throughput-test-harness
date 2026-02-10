@@ -24,18 +24,20 @@ public static class HtmlChartReporter
         ["rgba(76,175,80,0.15)", "rgba(33,150,243,0.15)", "rgba(255,152,0,0.15)", "rgba(244,67,54,0.15)",
          "rgba(156,39,176,0.15)", "rgba(0,188,212,0.15)", "rgba(121,85,72,0.15)", "rgba(96,125,139,0.15)"];
 
-    public static async Task ExportAsync(TestSuite suite, string filePath, string mode)
+    public static async Task ExportAsync(TestSuite suite, string filePath, string mode,
+        string? deliveryLogJsFilename = null)
     {
         var dir = Path.GetDirectoryName(filePath);
         if (!string.IsNullOrEmpty(dir))
             Directory.CreateDirectory(dir);
 
-        var html = GenerateHtml(suite, mode);
+        var html = GenerateHtml(suite, mode, deliveryLogJsFilename);
         await File.WriteAllTextAsync(filePath, html);
         Console.WriteLine($"HTML report exported to: {filePath}");
     }
 
-    private static string GenerateHtml(TestSuite suite, string mode)
+    private static string GenerateHtml(TestSuite suite, string mode,
+        string? deliveryLogJsFilename = null)
     {
         var testIds = suite.Results.Select(r => r.TestId).Distinct().OrderBy(id => id).ToList();
         var sb = new StringBuilder();
@@ -47,6 +49,8 @@ public static class HtmlChartReporter
         sb.AppendLine("  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">");
         sb.AppendLine("  <title>Kafka Throughput Test Results</title>");
         sb.AppendLine("  <script src=\"https://cdn.jsdelivr.net/npm/chart.js@4\"></script>");
+        if (!string.IsNullOrEmpty(deliveryLogJsFilename))
+            sb.AppendLine($"  <script src=\"{deliveryLogJsFilename}\"></script>");
         AppendStyles(sb);
         sb.AppendLine("</head>");
         sb.AppendLine("<body>");
@@ -110,11 +114,19 @@ public static class HtmlChartReporter
             }
         }
 
+        // ── Delivery Log Viewer Section ──
+        AppendDeliveryLogViewer(sb);
+
         // ── JavaScript ──
         sb.AppendLine("  <script>");
         AppendBarChartScript(sb, suite, testIds);
         if (resultsWithSamples.Count > 0)
             AppendTimeSeriesScript(sb, resultsWithSamples);
+        sb.AppendLine("  </script>");
+
+        // ── Delivery Log Viewer Script ──
+        sb.AppendLine("  <script>");
+        AppendDeliveryLogScript(sb);
         sb.AppendLine("  </script>");
 
         sb.AppendLine("</body>");
@@ -150,6 +162,30 @@ public static class HtmlChartReporter
         sb.AppendLine("                       border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }");
         sb.AppendLine("    .chart-container-wide { width: 100%; background: #fff; padding: 16px;");
         sb.AppendLine("                            border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }");
+        // Delivery log viewer styles
+        sb.AppendLine("    .log-controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: center;");
+        sb.AppendLine("                    margin-bottom: 16px; }");
+        sb.AppendLine("    .log-btn { padding: 8px 16px; border: 1px solid #ccc; border-radius: 4px;");
+        sb.AppendLine("               background: #fff; cursor: pointer; font-size: 13px; transition: all 0.2s; }");
+        sb.AppendLine("    .log-btn:hover { background: #e8eaf6; }");
+        sb.AppendLine("    .log-btn.active { background: #1a237e; color: #fff; border-color: #1a237e; }");
+        sb.AppendLine("    .log-search { padding: 8px 12px; border: 1px solid #ccc; border-radius: 4px;");
+        sb.AppendLine("                  font-size: 13px; min-width: 250px; }");
+        sb.AppendLine("    .log-search:focus { outline: none; border-color: #1a237e; }");
+        sb.AppendLine("    .log-status { font-size: 13px; color: #666; margin-left: auto; }");
+        sb.AppendLine("    #logTable th { text-align: left; }");
+        sb.AppendLine("    #logTable td { text-align: left; font-size: 12px; font-family: 'SF Mono', Monaco, monospace; }");
+        sb.AppendLine("    #logTable tr.log-success td:first-child { color: #2e7d32; font-weight: 600; }");
+        sb.AppendLine("    #logTable tr.log-error { background: #fff5f5; }");
+        sb.AppendLine("    #logTable tr.log-error td:first-child { color: #c62828; font-weight: 600; }");
+        sb.AppendLine("    .log-pagination { display: flex; gap: 4px; align-items: center; justify-content: center;");
+        sb.AppendLine("                      margin-top: 16px; flex-wrap: wrap; }");
+        sb.AppendLine("    .log-pagination button { padding: 6px 12px; border: 1px solid #ccc; border-radius: 4px;");
+        sb.AppendLine("                             background: #fff; cursor: pointer; font-size: 13px; }");
+        sb.AppendLine("    .log-pagination button:hover { background: #e8eaf6; }");
+        sb.AppendLine("    .log-pagination button.active { background: #1a237e; color: #fff; border-color: #1a237e; }");
+        sb.AppendLine("    .log-pagination button:disabled { opacity: 0.4; cursor: default; }");
+        sb.AppendLine("    .log-empty { text-align: center; padding: 48px 16px; color: #999; font-size: 14px; }");
         sb.AppendLine("  </style>");
     }
 
@@ -364,6 +400,171 @@ public static class HtmlChartReporter
         }}
       }}
     }});");
+    }
+
+    private static void AppendDeliveryLogViewer(StringBuilder sb)
+    {
+        sb.AppendLine("  <h2>Producer Delivery Logs</h2>");
+        sb.AppendLine("  <div id=\"logViewer\">");
+        sb.AppendLine("    <div class=\"log-controls\">");
+        sb.AppendLine("      <button class=\"log-btn active\" data-filter=\"all\" id=\"btnAll\">All</button>");
+        sb.AppendLine("      <button class=\"log-btn\" data-filter=\"SUCCESS\" id=\"btnSuccess\">Success</button>");
+        sb.AppendLine("      <button class=\"log-btn\" data-filter=\"ERROR\" id=\"btnError\">Error</button>");
+        sb.AppendLine("      <input type=\"text\" class=\"log-search\" id=\"logSearch\" placeholder=\"Search testId, testName, msgKey, errorCode...\">");
+        sb.AppendLine("      <span class=\"log-status\" id=\"logStatus\"></span>");
+        sb.AppendLine("    </div>");
+        sb.AppendLine("    <table id=\"logTable\">");
+        sb.AppendLine("      <thead><tr>");
+        sb.AppendLine("        <th>Level</th><th>TestId</th><th>TestName</th><th>Run</th><th>MsgKey</th>");
+        sb.AppendLine("        <th>Partition</th><th>Offset</th><th>Timestamp</th><th>Status</th>");
+        sb.AppendLine("        <th>ErrorCode</th><th>ErrorReason</th>");
+        sb.AppendLine("      </tr></thead>");
+        sb.AppendLine("      <tbody id=\"logBody\"></tbody>");
+        sb.AppendLine("    </table>");
+        sb.AppendLine("    <div class=\"log-pagination\" id=\"logPagination\"></div>");
+        sb.AppendLine("  </div>");
+    }
+
+    private static void AppendDeliveryLogScript(StringBuilder sb)
+    {
+        sb.AppendLine(@"
+    (function() {
+      var logs = window.DELIVERY_LOGS || [];
+      var PAGE_SIZE = 100;
+      var currentFilter = 'all';
+      var searchTerm = '';
+      var currentPage = 1;
+
+      var btnAll = document.getElementById('btnAll');
+      var btnSuccess = document.getElementById('btnSuccess');
+      var btnError = document.getElementById('btnError');
+      var logSearch = document.getElementById('logSearch');
+      var logBody = document.getElementById('logBody');
+      var logStatus = document.getElementById('logStatus');
+      var logPagination = document.getElementById('logPagination');
+
+      if (!logs.length) {
+        logBody.innerHTML = '<tr><td colspan=""11"" class=""log-empty"">No delivery log entries found. ' +
+          'Delivery logs are generated for T3.x (all deliveries) and T1.x (errors only).</td></tr>';
+        updateCounts();
+        return;
+      }
+
+      function updateCounts() {
+        var successCount = logs.filter(function(e) { return e.level === 'SUCCESS'; }).length;
+        var errorCount = logs.filter(function(e) { return e.level === 'ERROR'; }).length;
+        btnAll.textContent = 'All (' + logs.length + ')';
+        btnSuccess.textContent = 'Success (' + successCount + ')';
+        btnError.textContent = 'Error (' + errorCount + ')';
+      }
+
+      function getFiltered() {
+        return logs.filter(function(e) {
+          if (currentFilter !== 'all' && e.level !== currentFilter) return false;
+          if (searchTerm) {
+            var s = searchTerm.toLowerCase();
+            var fields = [e.testId, e.testName, String(e.msgKey), e.errorCode || '', e.errorReason || ''];
+            var match = false;
+            for (var i = 0; i < fields.length; i++) {
+              if (fields[i].toLowerCase().indexOf(s) >= 0) { match = true; break; }
+            }
+            if (!match) return false;
+          }
+          return true;
+        });
+      }
+
+      function render() {
+        var filtered = getFiltered();
+        var totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+        if (currentPage > totalPages) currentPage = totalPages;
+
+        var start = (currentPage - 1) * PAGE_SIZE;
+        var end = Math.min(start + PAGE_SIZE, filtered.length);
+        var page = filtered.slice(start, end);
+
+        var html = '';
+        for (var i = 0; i < page.length; i++) {
+          var e = page[i];
+          var cls = e.level === 'ERROR' ? 'log-error' : 'log-success';
+          html += '<tr class=""' + cls + '"">' +
+            '<td>' + esc(e.level) + '</td>' +
+            '<td>' + esc(e.testId) + '</td>' +
+            '<td>' + esc(e.testName) + '</td>' +
+            '<td>' + e.run + '</td>' +
+            '<td>' + e.msgKey + '</td>' +
+            '<td>' + e.partition + '</td>' +
+            '<td>' + e.offset + '</td>' +
+            '<td>' + esc(e.timestamp) + '</td>' +
+            '<td>' + esc(e.status) + '</td>' +
+            '<td>' + esc(e.errorCode || '') + '</td>' +
+            '<td>' + esc(e.errorReason || '') + '</td>' +
+            '</tr>';
+        }
+        logBody.innerHTML = html || '<tr><td colspan=""11"" class=""log-empty"">No entries match the current filter.</td></tr>';
+
+        // Status bar
+        if (filtered.length > 0) {
+          logStatus.textContent = 'Showing ' + (start + 1) + '-' + end + ' of ' + filtered.length + ' entries';
+        } else {
+          logStatus.textContent = '0 entries';
+        }
+
+        // Pagination
+        var pagHtml = '';
+        pagHtml += '<button ' + (currentPage <= 1 ? 'disabled' : '') + ' data-page=""' + (currentPage - 1) + '"">Prev</button>';
+
+        var maxButtons = 7;
+        var startPage = Math.max(1, currentPage - Math.floor(maxButtons / 2));
+        var endPage = Math.min(totalPages, startPage + maxButtons - 1);
+        if (endPage - startPage < maxButtons - 1) startPage = Math.max(1, endPage - maxButtons + 1);
+
+        for (var p = startPage; p <= endPage; p++) {
+          pagHtml += '<button data-page=""' + p + '""' + (p === currentPage ? ' class=""active""' : '') + '>' + p + '</button>';
+        }
+
+        pagHtml += '<button ' + (currentPage >= totalPages ? 'disabled' : '') + ' data-page=""' + (currentPage + 1) + '"">Next</button>';
+        logPagination.innerHTML = pagHtml;
+      }
+
+      function esc(s) {
+        if (!s) return '';
+        return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      }
+
+      // Event: filter buttons
+      document.querySelectorAll('.log-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          document.querySelectorAll('.log-btn').forEach(function(b) { b.classList.remove('active'); });
+          btn.classList.add('active');
+          currentFilter = btn.getAttribute('data-filter');
+          currentPage = 1;
+          render();
+        });
+      });
+
+      // Event: search (debounced)
+      var debounceTimer;
+      logSearch.addEventListener('input', function() {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(function() {
+          searchTerm = logSearch.value;
+          currentPage = 1;
+          render();
+        }, 300);
+      });
+
+      // Event: pagination (delegated)
+      logPagination.addEventListener('click', function(ev) {
+        var btn = ev.target.closest('button');
+        if (!btn || btn.disabled) return;
+        currentPage = parseInt(btn.getAttribute('data-page'), 10);
+        render();
+      });
+
+      updateCounts();
+      render();
+    })();");
     }
 
     private static string Escape(string text) =>
