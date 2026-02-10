@@ -72,6 +72,27 @@ public static class HtmlChartReporter
         // ── Summary Table ──
         AppendSummaryTable(sb, suite, testIds);
 
+        // ── Test Filter Dropdown ──
+        sb.AppendLine("  <div class=\"test-filter\">");
+        sb.AppendLine($"    <button class=\"test-filter-btn\" id=\"testFilterBtn\">Filter Tests ({testIds.Count}/{testIds.Count})</button>");
+        sb.AppendLine("    <div class=\"test-filter-dropdown\" id=\"testFilterDropdown\">");
+        sb.AppendLine("      <div class=\"test-filter-actions\">");
+        sb.AppendLine("        <a id=\"testFilterAll\">All</a>");
+        sb.AppendLine("        <a id=\"testFilterNone\">None</a>");
+        sb.AppendLine("      </div>");
+        for (var i = 0; i < testIds.Count; i++)
+        {
+            var avg = suite.GetAverageForTest(testIds[i]);
+            if (avg == null) continue;
+            var filterLabel = $"{avg.TestId} {avg.TestName.Replace(" (Avg)", "")}";
+            sb.AppendLine($"      <div class=\"test-filter-item\">");
+            sb.AppendLine($"        <input type=\"checkbox\" id=\"testFilter_{i}\" data-index=\"{i}\" checked>");
+            sb.AppendLine($"        <label for=\"testFilter_{i}\">{Escape(filterLabel)}</label>");
+            sb.AppendLine($"      </div>");
+        }
+        sb.AppendLine("    </div>");
+        sb.AppendLine("  </div>");
+
         // ── Bar Charts: Msgs/sec and MB/sec comparison ──
         sb.AppendLine("  <h2>Throughput Comparison</h2>");
         sb.AppendLine("  <div class=\"chart-row\">");
@@ -122,6 +143,11 @@ public static class HtmlChartReporter
         AppendBarChartScript(sb, suite, testIds);
         if (resultsWithSamples.Count > 0)
             AppendTimeSeriesScript(sb, resultsWithSamples);
+        sb.AppendLine("  </script>");
+
+        // ── Test Filter Script ──
+        sb.AppendLine("  <script>");
+        AppendTestFilterScript(sb, testIds);
         sb.AppendLine("  </script>");
 
         // ── Delivery Log Viewer Script ──
@@ -186,6 +212,23 @@ public static class HtmlChartReporter
         sb.AppendLine("    .log-pagination button.active { background: #1a237e; color: #fff; border-color: #1a237e; }");
         sb.AppendLine("    .log-pagination button:disabled { opacity: 0.4; cursor: default; }");
         sb.AppendLine("    .log-empty { text-align: center; padding: 48px 16px; color: #999; font-size: 14px; }");
+        // Test filter dropdown styles
+        sb.AppendLine("    .test-filter { position: relative; display: inline-block; margin-bottom: 16px; }");
+        sb.AppendLine("    .test-filter-btn { padding: 8px 16px; border: 1px solid #ccc; border-radius: 4px;");
+        sb.AppendLine("                       background: #fff; cursor: pointer; font-size: 13px; transition: all 0.2s; }");
+        sb.AppendLine("    .test-filter-btn:hover { background: #e8eaf6; }");
+        sb.AppendLine("    .test-filter-dropdown { display: none; position: absolute; left: 0; top: 100%; margin-top: 4px;");
+        sb.AppendLine("                            background: #fff; border: 1px solid #ccc; border-radius: 4px;");
+        sb.AppendLine("                            box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 1000;");
+        sb.AppendLine("                            min-width: 320px; max-height: 400px; overflow-y: auto; padding: 8px 0; }");
+        sb.AppendLine("    .test-filter-dropdown.open { display: block; }");
+        sb.AppendLine("    .test-filter-actions { display: flex; gap: 12px; padding: 4px 12px 8px; border-bottom: 1px solid #eee; margin-bottom: 4px; }");
+        sb.AppendLine("    .test-filter-actions a { font-size: 13px; color: #1a237e; cursor: pointer; text-decoration: underline; }");
+        sb.AppendLine("    .test-filter-actions a:hover { color: #0d47a1; }");
+        sb.AppendLine("    .test-filter-item { display: flex; align-items: center; padding: 4px 12px; cursor: pointer; }");
+        sb.AppendLine("    .test-filter-item:hover { background: #f0f4ff; }");
+        sb.AppendLine("    .test-filter-item input { margin-right: 8px; cursor: pointer; }");
+        sb.AppendLine("    .test-filter-item label { font-size: 13px; cursor: pointer; flex: 1; }");
         sb.AppendLine("  </style>");
     }
 
@@ -246,9 +289,18 @@ public static class HtmlChartReporter
         var labelsJson = JsonSerializer.Serialize(labels);
         var colorsJson = JsonSerializer.Serialize(colorList);
 
+        // Store original bar chart data for filtering
+        sb.AppendLine($@"
+    window.barChartFullData = {{
+      labels: {labelsJson},
+      msgSecData: [{string.Join(",", msgSecData)}],
+      mbSecData: [{string.Join(",", mbSecData.Select(v => v.ToString("F2")))}],
+      colors: {colorsJson}
+    }};");
+
         // Msgs/sec bar chart
         sb.AppendLine($@"
-    new Chart(document.getElementById('msgSecChart'), {{
+    window.msgSecChart = new Chart(document.getElementById('msgSecChart'), {{
       type: 'bar',
       data: {{
         labels: {labelsJson},
@@ -274,7 +326,7 @@ public static class HtmlChartReporter
 
         // MB/sec bar chart
         sb.AppendLine($@"
-    new Chart(document.getElementById('mbSecChart'), {{
+    window.mbSecChart = new Chart(document.getElementById('mbSecChart'), {{
       type: 'bar',
       data: {{
         labels: {labelsJson},
@@ -319,11 +371,13 @@ public static class HtmlChartReporter
     {
         // Build datasets: compute instantaneous msgs/sec from cumulative samples
         var datasets = new StringBuilder();
+        var datasetTestIds = new List<string>(); // Track which testId each dataset belongs to
         for (var i = 0; i < results.Count; i++)
         {
             var r = results[i];
             var samples = r.Samples;
             if (samples.Count < 2) continue;
+            datasetTestIds.Add(r.TestId);
 
             // Compute per-second throughput rate between consecutive samples
             var timePoints = new List<string>();
@@ -373,7 +427,7 @@ public static class HtmlChartReporter
         }
 
         sb.AppendLine($@"
-    new Chart(document.getElementById('{canvasId}'), {{
+    window.{canvasId}Instance = new Chart(document.getElementById('{canvasId}'), {{
       type: 'line',
       data: {{
         labels: [{string.Join(",", labelsBuilder)}],
@@ -400,6 +454,10 @@ public static class HtmlChartReporter
         }}
       }}
     }});");
+
+        // Emit dataset-to-testId mapping for this time-series chart
+        var datasetTestIdsJson = JsonSerializer.Serialize(datasetTestIds);
+        sb.AppendLine($"    window.{canvasId}TestIds = {datasetTestIdsJson};");
     }
 
     private static void AppendDeliveryLogViewer(StringBuilder sb)
@@ -565,6 +623,126 @@ public static class HtmlChartReporter
       updateCounts();
       render();
     })();");
+    }
+
+    private static void AppendTestFilterScript(StringBuilder sb, List<string> testIds)
+    {
+        var testIdsJson = JsonSerializer.Serialize(testIds);
+        sb.AppendLine($@"
+    (function() {{
+      var testIds = {testIdsJson};
+      var total = testIds.length;
+      var btn = document.getElementById('testFilterBtn');
+      var dropdown = document.getElementById('testFilterDropdown');
+      var checkboxes = dropdown.querySelectorAll('input[type=""checkbox""]');
+
+      function getCheckedIndices() {{
+        var indices = [];
+        checkboxes.forEach(function(cb) {{
+          if (cb.checked) indices.push(parseInt(cb.getAttribute('data-index'), 10));
+        }});
+        return indices;
+      }}
+
+      function updateButtonLabel() {{
+        var count = getCheckedIndices().length;
+        btn.textContent = 'Filter Tests (' + count + '/' + total + ')';
+      }}
+
+      function updateBarCharts(indices) {{
+        var full = window.barChartFullData;
+        if (!full) return;
+
+        var filteredLabels = [];
+        var filteredMsgSec = [];
+        var filteredMbSec = [];
+        var filteredColors = [];
+
+        for (var i = 0; i < indices.length; i++) {{
+          var idx = indices[i];
+          filteredLabels.push(full.labels[idx]);
+          filteredMsgSec.push(full.msgSecData[idx]);
+          filteredMbSec.push(full.mbSecData[idx]);
+          filteredColors.push(full.colors[idx]);
+        }}
+
+        if (window.msgSecChart) {{
+          window.msgSecChart.data.labels = filteredLabels;
+          window.msgSecChart.data.datasets[0].data = filteredMsgSec;
+          window.msgSecChart.data.datasets[0].backgroundColor = filteredColors;
+          window.msgSecChart.update();
+        }}
+        if (window.mbSecChart) {{
+          window.mbSecChart.data.labels = filteredLabels;
+          window.mbSecChart.data.datasets[0].data = filteredMbSec;
+          window.mbSecChart.data.datasets[0].backgroundColor = filteredColors;
+          window.mbSecChart.update();
+        }}
+      }}
+
+      function updateTimeSeriesCharts(indices) {{
+        var checkedTestIds = {{}};
+        for (var i = 0; i < indices.length; i++) {{
+          checkedTestIds[testIds[indices[i]]] = true;
+        }}
+
+        var charts = [
+          {{ instance: window.producerTimeSeriesChartInstance, testIds: window.producerTimeSeriesChartTestIds }},
+          {{ instance: window.businessTimeSeriesChartInstance, testIds: window.businessTimeSeriesChartTestIds }},
+          {{ instance: window.consumerTimeSeriesChartInstance, testIds: window.consumerTimeSeriesChartTestIds }}
+        ];
+
+        for (var c = 0; c < charts.length; c++) {{
+          var chart = charts[c].instance;
+          var dsTestIds = charts[c].testIds;
+          if (!chart || !dsTestIds) continue;
+          for (var d = 0; d < dsTestIds.length; d++) {{
+            var visible = !!checkedTestIds[dsTestIds[d]];
+            chart.setDatasetVisibility(d, visible);
+          }}
+          chart.update();
+        }}
+      }}
+
+      function applyFilter() {{
+        var indices = getCheckedIndices();
+        updateButtonLabel();
+        updateBarCharts(indices);
+        updateTimeSeriesCharts(indices);
+      }}
+
+      // Toggle dropdown
+      btn.addEventListener('click', function(e) {{
+        e.stopPropagation();
+        dropdown.classList.toggle('open');
+      }});
+
+      // Close dropdown on outside click
+      document.addEventListener('click', function(e) {{
+        if (!dropdown.contains(e.target) && e.target !== btn) {{
+          dropdown.classList.remove('open');
+        }}
+      }});
+
+      // Checkbox change
+      checkboxes.forEach(function(cb) {{
+        cb.addEventListener('change', applyFilter);
+      }});
+
+      // All link
+      document.getElementById('testFilterAll').addEventListener('click', function() {{
+        checkboxes.forEach(function(cb) {{ cb.checked = true; }});
+        applyFilter();
+      }});
+
+      // None link
+      document.getElementById('testFilterNone').addEventListener('click', function() {{
+        checkboxes.forEach(function(cb) {{ cb.checked = false; }});
+        applyFilter();
+      }});
+
+      updateButtonLabel();
+    }})();");
     }
 
     private static string Escape(string text) =>
