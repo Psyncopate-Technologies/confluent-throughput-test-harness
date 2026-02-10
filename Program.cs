@@ -96,14 +96,32 @@ var testsToRun = allTests.AsEnumerable();
 if (specificTest != null)
 {
     // Support range filters like "T1.1-T1.8"
+    // Uses numeric comparison on the sub-number (e.g., 1 and 8 from T1.1-T1.8)
+    // to avoid lexicographic issues where "T1.10" < "T1.8".
     if (specificTest.Contains('-'))
     {
         var parts = specificTest.Split('-', 2);
         var rangeStart = parts[0].Trim();
         var rangeEnd = parts[1].Trim();
+
+        // Extract numeric ID for range bounds (e.g., "T1.8" → prefix "T1.", num 8)
+        var startDot = rangeStart.LastIndexOf('.');
+        var endDot = rangeEnd.LastIndexOf('.');
+        var startPrefix = startDot >= 0 ? rangeStart[..(startDot + 1)] : "";
+        var endPrefix = endDot >= 0 ? rangeEnd[..(endDot + 1)] : "";
+        var startNum = startDot >= 0 && int.TryParse(rangeStart[(startDot + 1)..], out var sn) ? sn : -1;
+        var endNum = endDot >= 0 && int.TryParse(rangeEnd[(endDot + 1)..], out var en) ? en : -1;
+
         testsToRun = testsToRun.Where(t =>
-            string.Compare(t.Id, rangeStart, StringComparison.OrdinalIgnoreCase) >= 0 &&
-            string.Compare(t.Id, rangeEnd, StringComparison.OrdinalIgnoreCase) <= 0);
+        {
+            var dot = t.Id.LastIndexOf('.');
+            if (dot < 0) return false;
+            var prefix = t.Id[..(dot + 1)];
+            if (!int.TryParse(t.Id[(dot + 1)..], out var num)) return false;
+            return prefix.Equals(startPrefix, StringComparison.OrdinalIgnoreCase) &&
+                   prefix.Equals(endPrefix, StringComparison.OrdinalIgnoreCase) &&
+                   num >= startNum && num <= endNum;
+        });
     }
     else
     {
