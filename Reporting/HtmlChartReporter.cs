@@ -104,31 +104,40 @@ public static class HtmlChartReporter
         var resultsWithSamples = suite.Results.Where(r => r.Samples.Count > 1).ToList();
         if (resultsWithSamples.Count > 0)
         {
-            var producerResults = resultsWithSamples.Where(r => r.TestId.StartsWith("T1")).ToList();
-            var consumerResults = resultsWithSamples.Where(r => r.TestId.StartsWith("T2")).ToList();
-            var businessResults = resultsWithSamples.Where(r => r.TestId.StartsWith("T3")).ToList();
+            var fireForgetResults = resultsWithSamples.Where(r => r.TestId.StartsWith("T1")).ToList();
+            var requestResponseResults = resultsWithSamples.Where(r => r.TestId.StartsWith("T2")).ToList();
+            var batchResults = resultsWithSamples.Where(r => r.TestId.StartsWith("T3")).ToList();
+            var consumerResults = resultsWithSamples.Where(r => r.TestId.StartsWith("T4")).ToList();
 
             sb.AppendLine("  <h2>Throughput Over Time</h2>");
 
-            if (producerResults.Count > 0)
+            if (fireForgetResults.Count > 0)
             {
-                sb.AppendLine("  <h3>Drag-Race Producer Tests (T1.x)</h3>");
+                sb.AppendLine("  <h3>Fire-and-Forget Producer Tests (T1.x)</h3>");
                 sb.AppendLine("  <div class=\"chart-row\">");
-                sb.AppendLine("    <div class=\"chart-container-wide\"><canvas id=\"producerTimeSeriesChart\"></canvas></div>");
+                sb.AppendLine("    <div class=\"chart-container-wide\"><canvas id=\"fireForgetTimeSeriesChart\"></canvas></div>");
                 sb.AppendLine("  </div>");
             }
 
-            if (businessResults.Count > 0)
+            if (requestResponseResults.Count > 0)
             {
-                sb.AppendLine("  <h3>Business-Realistic Producer Tests (T3.x)</h3>");
+                sb.AppendLine("  <h3>Request-Response Producer Tests (T2.x)</h3>");
                 sb.AppendLine("  <div class=\"chart-row\">");
-                sb.AppendLine("    <div class=\"chart-container-wide\"><canvas id=\"businessTimeSeriesChart\"></canvas></div>");
+                sb.AppendLine("    <div class=\"chart-container-wide\"><canvas id=\"requestResponseTimeSeriesChart\"></canvas></div>");
+                sb.AppendLine("  </div>");
+            }
+
+            if (batchResults.Count > 0)
+            {
+                sb.AppendLine("  <h3>Batch Processing Producer Tests (T3.x)</h3>");
+                sb.AppendLine("  <div class=\"chart-row\">");
+                sb.AppendLine("    <div class=\"chart-container-wide\"><canvas id=\"batchTimeSeriesChart\"></canvas></div>");
                 sb.AppendLine("  </div>");
             }
 
             if (consumerResults.Count > 0)
             {
-                sb.AppendLine("  <h3>Consumer Tests (T2.x)</h3>");
+                sb.AppendLine("  <h3>Consumer Tests (T4.x)</h3>");
                 sb.AppendLine("  <div class=\"chart-row\">");
                 sb.AppendLine("    <div class=\"chart-container-wide\"><canvas id=\"consumerTimeSeriesChart\"></canvas></div>");
                 sb.AppendLine("  </div>");
@@ -353,15 +362,19 @@ public static class HtmlChartReporter
 
     private static void AppendTimeSeriesScript(StringBuilder sb, List<TestResult> resultsWithSamples)
     {
-        var producerResults = resultsWithSamples.Where(r => r.TestId.StartsWith("T1")).ToList();
-        var consumerResults = resultsWithSamples.Where(r => r.TestId.StartsWith("T2")).ToList();
-        var businessResults = resultsWithSamples.Where(r => r.TestId.StartsWith("T3")).ToList();
+        var fireForgetResults = resultsWithSamples.Where(r => r.TestId.StartsWith("T1")).ToList();
+        var requestResponseResults = resultsWithSamples.Where(r => r.TestId.StartsWith("T2")).ToList();
+        var batchResults = resultsWithSamples.Where(r => r.TestId.StartsWith("T3")).ToList();
+        var consumerResults = resultsWithSamples.Where(r => r.TestId.StartsWith("T4")).ToList();
 
-        if (producerResults.Count > 0)
-            AppendTimeSeriesChart(sb, "producerTimeSeriesChart", "Drag-Race Producer Throughput Over Time", producerResults);
+        if (fireForgetResults.Count > 0)
+            AppendTimeSeriesChart(sb, "fireForgetTimeSeriesChart", "Fire-and-Forget Producer Throughput Over Time", fireForgetResults);
 
-        if (businessResults.Count > 0)
-            AppendTimeSeriesChart(sb, "businessTimeSeriesChart", "Business-Realistic Producer Throughput Over Time", businessResults);
+        if (requestResponseResults.Count > 0)
+            AppendTimeSeriesChart(sb, "requestResponseTimeSeriesChart", "Request-Response Producer Throughput Over Time", requestResponseResults);
+
+        if (batchResults.Count > 0)
+            AppendTimeSeriesChart(sb, "batchTimeSeriesChart", "Batch Processing Producer Throughput Over Time", batchResults);
 
         if (consumerResults.Count > 0)
             AppendTimeSeriesChart(sb, "consumerTimeSeriesChart", "Consumer Throughput Over Time", consumerResults);
@@ -503,7 +516,7 @@ public static class HtmlChartReporter
 
       if (!logs.length) {
         logBody.innerHTML = '<tr><td colspan=""11"" class=""log-empty"">No delivery log entries found. ' +
-          'Delivery logs are generated for T3.x (all deliveries) and T1.x (errors only).</td></tr>';
+          'Delivery logs are generated for all producer tests (T1.x–T3.x).</td></tr>';
         updateCounts();
         return;
       }
@@ -687,8 +700,9 @@ public static class HtmlChartReporter
         }}
 
         var charts = [
-          {{ instance: window.producerTimeSeriesChartInstance, testIds: window.producerTimeSeriesChartTestIds }},
-          {{ instance: window.businessTimeSeriesChartInstance, testIds: window.businessTimeSeriesChartTestIds }},
+          {{ instance: window.fireForgetTimeSeriesChartInstance, testIds: window.fireForgetTimeSeriesChartTestIds }},
+          {{ instance: window.requestResponseTimeSeriesChartInstance, testIds: window.requestResponseTimeSeriesChartTestIds }},
+          {{ instance: window.batchTimeSeriesChartInstance, testIds: window.batchTimeSeriesChartTestIds }},
           {{ instance: window.consumerTimeSeriesChartInstance, testIds: window.consumerTimeSeriesChartTestIds }}
         ];
 
