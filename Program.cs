@@ -95,9 +95,10 @@ var smallSchema = (RecordSchema)Schema.Parse(smallSchemaJson);
 var largeSchema = (RecordSchema)Schema.Parse(largeSchemaJson);
 
 // ── Build Test Definitions ───────────────────────────────────────────
-// Generate the full 28-test matrix:
+// Generate the full 32-test matrix:
 //   T1.1-T1.8  drag-race producers (Produce/ProduceAsync × 4 format/size combos)
 //   T3.1-T3.16 business-realistic producers (acks=all + idempotence + Task.WhenAll windows)
+//   T3.17-T3.20 business-realistic delivery handler producers (Produce + delivery handler)
 //   T2.1-T2.4  consumers
 // then filter based on CLI arguments.
 var allTests = TestDefinition.GetAll(testSettings);
@@ -341,6 +342,13 @@ static void PrintHelp()
     AnsiConsole.MarkupLine("  [grey]JSON Large (106 fields):[/]");
     AnsiConsole.MarkupLine("    T3.13  Window-1    T3.14  Window-10");
     AnsiConsole.MarkupLine("    T3.15  Window-50   T3.16  Window-100");
+    AnsiConsole.WriteLine();
+    AnsiConsole.MarkupLine("[bold]Business-Realistic Delivery Handler Tests (T3.17–T3.20):[/]");
+    AnsiConsole.MarkupLine("  [grey]acks=all + idempotence + Produce + delivery handler (fire-and-forget)[/]");
+    AnsiConsole.MarkupLine("    T3.17  Avro Small DeliveryHandler");
+    AnsiConsole.MarkupLine("    T3.18  Avro Large DeliveryHandler");
+    AnsiConsole.MarkupLine("    T3.19  JSON Small DeliveryHandler");
+    AnsiConsole.MarkupLine("    T3.20  JSON Large DeliveryHandler");
     AnsiConsole.WriteLine();
     AnsiConsole.MarkupLine("[bold]Consumer Tests (T2.x):[/]");
     AnsiConsole.MarkupLine("  T2.1  Consumer Avro Small");

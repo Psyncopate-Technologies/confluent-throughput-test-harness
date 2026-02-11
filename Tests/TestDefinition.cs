@@ -29,8 +29,9 @@ public enum ProduceApi { Produce, ProduceAsync }
 /// BatchConfigurable = flush every BatchCommitSize messages (from config).
 /// Batch5K = flush every 5,000 messages (hardcoded).
 /// ConcurrencyWindow = fire N ProduceAsync calls, await all with Task.WhenAll.
+/// DeliveryHandler = fire-and-forget Produce with delivery handler callback.
 /// </summary>
-public enum CommitStrategy { Single, BatchConfigurable, Batch5K, ConcurrencyWindow }
+public enum CommitStrategy { Single, BatchConfigurable, Batch5K, ConcurrencyWindow, DeliveryHandler }
 
 /// <summary>GenericRecord or SpecificRecord for Avro; NotApplicable for JSON.</summary>
 public enum RecordType { GenericRecord, SpecificRecord, NotApplicable }
@@ -49,6 +50,11 @@ public enum RecordType { GenericRecord, SpecificRecord, NotApplicable }
 ///   - ProduceAsync + acks=all + enable.idempotence=true
 ///   - Task.WhenAll concurrency windows: 1, 10, 50, 100
 ///   - 4 format/size combos × 4 windows = 16 tests
+///
+/// Business-realistic delivery handler tests (T3.17–T3.20):
+///   - Produce (fire-and-forget) + delivery handler callback
+///   - acks=all + enable.idempotence=true
+///   - 4 format/size combos × 1 pattern = 4 tests
 ///
 /// Consumer tests (T2.1–T2.4) remain unchanged.
 /// </summary>
@@ -72,6 +78,7 @@ public class TestDefinition
     /// Builds the full test matrix from the provided settings.
     /// Drag-race producer tests (T1.1–T1.8) run first and populate the topics;
     /// Business-realistic tests (T3.1–T3.16) use acks=all + idempotence + concurrency windows;
+    /// Business-realistic delivery handler tests (T3.17–T3.20) use Produce + delivery handler;
     /// Consumer tests (T2.1–T2.4) then read from those topics.
     /// </summary>
     public static List<TestDefinition> GetAll(Config.TestSettings settings)
@@ -169,6 +176,39 @@ public class TestDefinition
             }
         }
 
+        // ── Business-realistic delivery handler tests (T3.17–T3.20) ─────
+        // Produce (fire-and-forget) + delivery handler + acks=all + idempotence.
+        foreach (var format in new[] { SerializationFormat.Avro, SerializationFormat.Json })
+        {
+            foreach (var size in new[] { PayloadSize.Small, PayloadSize.Large })
+            {
+                var recordType = format == SerializationFormat.Avro
+                    ? RecordType.SpecificRecord
+                    : RecordType.NotApplicable;
+
+                string topic = GetProducerTopic(settings, format, size, recordType);
+                string name = BuildBusinessDeliveryHandlerName(format, size);
+
+                producerTests.Add(new TestDefinition
+                {
+                    Id = $"T3.{t3Num}",
+                    Name = name,
+                    Type = TestType.Producer,
+                    Format = format,
+                    Size = size,
+                    RecordType = recordType,
+                    ProduceApi = ProduceApi.Produce,
+                    CommitStrategy = CommitStrategy.DeliveryHandler,
+                    Topic = topic,
+                    MessageCount = settings.MessageCount,
+                    Duration = duration,
+                    Runs = businessRuns,
+                    ConcurrencyWindow = 0,
+                });
+                t3Num++;
+            }
+        }
+
         // ── Consumer tests (T2.x) ──────────────────────────────────────
         // Unchanged — read from the topics populated by producer tests.
         var consumerTests = new List<TestDefinition>
@@ -252,6 +292,7 @@ public class TestDefinition
             CommitStrategy.BatchConfigurable => "BatchConfig",
             CommitStrategy.Batch5K           => "Batch5K",
             CommitStrategy.ConcurrencyWindow => "Window",
+            CommitStrategy.DeliveryHandler  => "DeliveryHandler",
             _ => strategy.ToString()
         };
 
@@ -262,5 +303,11 @@ public class TestDefinition
         SerializationFormat format, PayloadSize size, int window)
     {
         return $"Business {format} {size} Window-{window}";
+    }
+
+    private static string BuildBusinessDeliveryHandlerName(
+        SerializationFormat format, PayloadSize size)
+    {
+        return $"Business {format} {size} DeliveryHandler";
     }
 }

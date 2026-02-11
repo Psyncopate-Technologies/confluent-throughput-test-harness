@@ -66,6 +66,11 @@ public class ProducerTestRunner
         if (test.CommitStrategy == CommitStrategy.ConcurrencyWindow)
             return await RunBusinessRealisticAsync(test, runNumber, onProgress);
 
+        // T3.17–T3.20 delivery handler tests use Produce (fire-and-forget)
+        // with a delivery handler callback + acks=all + idempotence.
+        if (test.CommitStrategy == CommitStrategy.DeliveryHandler)
+            return await RunBusinessDeliveryHandlerAsync(test, runNumber, onProgress);
+
         int batchSize = test.CommitStrategy switch
         {
             CommitStrategy.Single => 1,
@@ -252,6 +257,161 @@ public class ProducerTestRunner
 
         return await RunConcurrencyWindowLoopAsync(test, runNumber, producer, record, factory,
             test.ConcurrencyWindow, EstimateJsonBytes, onProgress);
+    }
+
+    // ── Business-realistic delivery handler routing (T3.17–T3.20) ─────
+
+    /// <summary>
+    /// Routes T3.17–T3.20 delivery handler tests to the appropriate setup method.
+    /// All tests use Produce (fire-and-forget) + delivery handler + acks=all + idempotence.
+    /// </summary>
+    private async Task<TestResult> RunBusinessDeliveryHandlerAsync(TestDefinition test, int runNumber,
+        Action<int, TimeSpan>? onProgress)
+    {
+        return (test.Format, test.Size) switch
+        {
+            (SerializationFormat.Avro, PayloadSize.Small) =>
+                await RunBusinessAvroSpecificDHAsync(test, runNumber,
+                    new AvroSmallSpecificDataFactory(), onProgress),
+
+            (SerializationFormat.Avro, PayloadSize.Large) =>
+                await RunBusinessAvroSpecificDHAsync(test, runNumber,
+                    new AvroLargeSpecificDataFactory(), onProgress),
+
+            (SerializationFormat.Json, PayloadSize.Small) =>
+                await RunBusinessJsonTypedDHAsync(test, runNumber,
+                    new JsonSmallDataFactory(), onProgress),
+
+            (SerializationFormat.Json, PayloadSize.Large) =>
+                await RunBusinessJsonTypedDHAsync(test, runNumber,
+                    new JsonLargeDataFactory(), onProgress),
+
+            _ => throw new ArgumentException(
+                $"Unsupported T3.x delivery handler combination: {test.Format}/{test.Size}")
+        };
+    }
+
+    // ── Business-realistic Avro SpecificRecord delivery handler setup (T3.17–T3.20) ──
+
+    private async Task<TestResult> RunBusinessAvroSpecificDHAsync<T>(
+        TestDefinition test, int runNumber,
+        ITestDataFactory<T> factory,
+        Action<int, TimeSpan>? onProgress) where T : ISpecificRecord
+    {
+        var record = factory.CreateRecord();
+        var producerConfig = BuildBusinessRealisticProducerConfig();
+        using var schemaRegistry = new CachedSchemaRegistryClient(BuildSchemaRegistryConfig());
+        var avroConfig = new AvroSerializerConfig { AutoRegisterSchemas = false, UseLatestVersion = true };
+
+        var keySerializer = new AvroSerializer<int>(schemaRegistry, avroConfig);
+        var valueSerializer = new AvroSerializer<T>(schemaRegistry, avroConfig);
+
+        // Produce (sync fire-and-forget) requires sync serializers via AsSyncOverAsync
+        using var producer = new ProducerBuilder<int, T>(producerConfig)
+            .SetKeySerializer(keySerializer.AsSyncOverAsync())
+            .SetValueSerializer(valueSerializer.AsSyncOverAsync())
+            .Build();
+
+        return await RunDeliveryHandlerLoopAsync(test, runNumber, producer, record, factory,
+            EstimateAvroSpecificBytes, onProgress);
+    }
+
+    // ── Business-realistic JSON delivery handler setup (T3.17–T3.20) ──
+
+    private async Task<TestResult> RunBusinessJsonTypedDHAsync<T>(
+        TestDefinition test, int runNumber,
+        ITestDataFactory<T> factory,
+        Action<int, TimeSpan>? onProgress) where T : class
+    {
+        var record = factory.CreateRecord();
+        var producerConfig = BuildBusinessRealisticProducerConfig();
+        using var schemaRegistry = new CachedSchemaRegistryClient(BuildSchemaRegistryConfig());
+        var jsonConfig = new JsonSerializerConfig { AutoRegisterSchemas = false, UseLatestVersion = true };
+
+        var jsonSerializer = new JsonSerializer<T>(schemaRegistry, jsonConfig);
+
+        // Produce (sync fire-and-forget) requires sync serializer via AsSyncOverAsync
+        using var producer = new ProducerBuilder<int, T>(producerConfig)
+            .SetValueSerializer(jsonSerializer.AsSyncOverAsync())
+            .Build();
+
+        return await RunDeliveryHandlerLoopAsync(test, runNumber, producer, record, factory,
+            EstimateJsonBytes, onProgress);
+    }
+
+    // ── Delivery handler produce loop (T3.17–T3.20) ──────────────────
+
+    /// <summary>
+    /// Fire-and-forget produce loop with a delivery handler callback.
+    /// Calls producer.Produce(topic, message, deliveryHandler) for maximum throughput
+    /// while still processing each delivery result individually via the callback.
+    /// No explicit flush inside the loop — librdkafka batches via linger.ms/batch.size.
+    /// Final Flush(60s) after the loop drains remaining in-flight messages.
+    /// </summary>
+    private async Task<TestResult> RunDeliveryHandlerLoopAsync<TValue>(
+        TestDefinition test, int runNumber,
+        IProducer<int, TValue> producer,
+        TValue record,
+        ITestDataFactory<TValue> factory,
+        Func<TValue, int, long> estimateBytes,
+        Action<int, TimeSpan>? onProgress)
+    {
+        using var monitor = new ResourceMonitor();
+        var errors = 0;
+        var messageCount = 0;
+        var lastProgressReport = TimeSpan.Zero;
+
+        var sw = Stopwatch.StartNew();
+
+        while (ShouldContinueProducing(test, messageCount, sw))
+        {
+            messageCount++;
+            factory.SetMessageHeader(record, messageCount, DateTime.UtcNow.ToString("O"));
+
+            var message = new Message<int, TValue> { Key = messageCount, Value = record };
+
+            producer.Produce(test.Topic, message, dr =>
+            {
+                if (dr.Error.IsError)
+                {
+                    Interlocked.Increment(ref errors);
+                    _deliveryLogger?.LogError(test.Id, test.Name, runNumber,
+                        dr.Key, dr.Partition.Value, dr.Offset.Value,
+                        dr.Error.Code.ToString(), dr.Error.Reason);
+                }
+                else
+                {
+                    _deliveryLogger?.LogSuccess(test.Id, test.Name, runNumber,
+                        dr.Key, dr.Partition.Value, dr.Offset.Value);
+                }
+            });
+
+            if (onProgress != null && sw.Elapsed - lastProgressReport >= TimeSpan.FromSeconds(1))
+            {
+                onProgress(messageCount, sw.Elapsed);
+                lastProgressReport = sw.Elapsed;
+            }
+        }
+
+        producer.Flush(TimeSpan.FromSeconds(60));
+        sw.Stop();
+
+        return await Task.FromResult(new TestResult
+        {
+            TestId = test.Id,
+            TestName = test.Name,
+            ProduceApi = test.ProduceApi.ToString(),
+            CommitStrategy = test.CommitStrategy.ToString(),
+            RecordType = test.RecordType.ToString(),
+            ConcurrencyWindow = 0,
+            RunNumber = runNumber,
+            MessageCount = messageCount,
+            TotalBytes = estimateBytes(record, messageCount),
+            Elapsed = sw.Elapsed,
+            PeakCpuPercent = monitor.PeakCpuPercent,
+            PeakMemoryBytes = monitor.PeakMemoryBytes,
+            DeliveryErrors = errors
+        });
     }
 
     // ── Concurrency window produce loop (T3.x) ───────────────────────
