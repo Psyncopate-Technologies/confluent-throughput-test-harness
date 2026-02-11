@@ -25,6 +25,9 @@ credentials/
 results/
 *.csv
 
+## Schema cache (downloaded from Schema Registry at runtime)
+schema-cache/
+
 ## Claude Code
 .claude/
 CLAUD.md

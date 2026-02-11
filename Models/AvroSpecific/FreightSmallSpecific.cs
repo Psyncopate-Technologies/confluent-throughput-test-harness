@@ -10,6 +10,7 @@
 
 using Avro;
 using Avro.Specific;
+using ConfluentThroughputTestHarness.Config;
 
 namespace ConfluentThroughputTestHarness.Models.AvroSpecific;
 
@@ -17,8 +18,7 @@ public class FreightSmallSpecific : ISpecificRecord
 {
     private static readonly Lazy<RecordSchema> _schemaLazy = new(() =>
     {
-        var json = File.ReadAllText(
-            Path.Combine(AppContext.BaseDirectory, "Schemas", "test-avro-small-value.avsc"));
+        var json = SchemaRegistryCache.GetSchemaJsonFromCache("test-avro-small-value");
         return (RecordSchema)Schema.Parse(json);
     });
 

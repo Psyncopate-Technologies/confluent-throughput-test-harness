@@ -45,10 +45,12 @@ config.GetSection("Test").Bind(testSettings);
 //   --consumer-only   Run only T2.x consumer tests
 //   --test <ID>       Run a single test (e.g., T1.1 or T2.3)
 //   --duration <N>    Run each test for N minutes (overrides MessageCount)
+//   --refresh-schemas Force re-download of Avro schemas from Schema Registry
 //   --help            Print usage information
 var producerOnly = args.Contains("--producer-only", StringComparer.OrdinalIgnoreCase);
 var consumerOnly = args.Contains("--consumer-only", StringComparer.OrdinalIgnoreCase);
 var helpRequested = args.Contains("--help", StringComparer.OrdinalIgnoreCase);
+var refreshSchemas = args.Contains("--refresh-schemas", StringComparer.OrdinalIgnoreCase);
 
 string? specificTest = null;
 var testIndex = Array.FindIndex(args, a => a.Equals("--test", StringComparison.OrdinalIgnoreCase));
@@ -80,13 +82,14 @@ LogicalTypeFactory.Instance.Register(new VarcharLogicalType());
 LogicalTypeFactory.Instance.Register(new CharLogicalType());
 
 // ── Load Schemas ─────────────────────────────────────────────────────
-// Read and parse the two Avro value schemas from the Schemas/ directory.
-// These are used by ProducerTestRunner to build GenericRecord instances.
-// JSON schemas are not loaded here because the JSON serializer works with
-// POCO classes and resolves schemas from Schema Registry at runtime.
-var schemasDir = Path.Combine(AppContext.BaseDirectory, "Schemas");
-var smallSchemaJson = await File.ReadAllTextAsync(Path.Combine(schemasDir, "test-avro-small-value.avsc"));
-var largeSchemaJson = await File.ReadAllTextAsync(Path.Combine(schemasDir, "test-avro-large-value.avsc"));
+// Download Avro value schemas from Schema Registry and cache them locally
+// under schema-cache/. Subsequent runs read from the cache unless
+// --refresh-schemas is specified. JSON schemas are not loaded here because
+// the JSON serializer works with POCO classes and resolves schemas from
+// Schema Registry at runtime.
+var schemaCache = new SchemaRegistryCache(srSettings, forceRefresh: refreshSchemas);
+var smallSchemaJson = await schemaCache.GetSchemaJsonAsync("test-avro-small-value");
+var largeSchemaJson = await schemaCache.GetSchemaJsonAsync("test-avro-large-value");
 
 var smallSchema = (RecordSchema)Schema.Parse(smallSchemaJson);
 var largeSchema = (RecordSchema)Schema.Parse(largeSchemaJson);
@@ -302,6 +305,7 @@ static void PrintHelp()
     AnsiConsole.MarkupLine("  dotnet run -- --test T1.1         Run a specific test");
     AnsiConsole.MarkupLine("  dotnet run -- --test T1.1-T1.8    Run a range of tests");
     AnsiConsole.MarkupLine("  dotnet run -- --test T1.1,T1.4    Run a comma-separated list of tests");
+    AnsiConsole.MarkupLine("  dotnet run -- --refresh-schemas   Re-download schemas from Schema Registry");
     AnsiConsole.MarkupLine("  dotnet run -- --help              Show this help");
     AnsiConsole.WriteLine();
     AnsiConsole.MarkupLine("[bold]Modes:[/]");
