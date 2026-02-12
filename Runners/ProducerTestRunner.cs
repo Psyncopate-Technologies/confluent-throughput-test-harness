@@ -62,6 +62,10 @@ public class ProducerTestRunner
 
     // ── Fire-and-Forget routing (T1.x) ──────────────────────────────
 
+    /// <summary>
+    /// Routes a T1.x fire-and-forget test to the correct serialization setup method
+    /// based on the test's format (Avro/JSON) and payload size (Small/Large).
+    /// </summary>
     private async Task<TestResult> RunFireAndForgetAsync(TestDefinition test, int runNumber,
         Action<int, TimeSpan>? onProgress)
     {
@@ -90,6 +94,10 @@ public class ProducerTestRunner
 
     // ── Request-Response routing (T2.x) ─────────────────────────────
 
+    /// <summary>
+    /// Routes a T2.x request-response test to the correct serialization setup method
+    /// based on the test's format (Avro/JSON) and payload size (Small/Large).
+    /// </summary>
     private async Task<TestResult> RunRequestResponseAsync(TestDefinition test, int runNumber,
         Action<int, TimeSpan>? onProgress)
     {
@@ -118,6 +126,10 @@ public class ProducerTestRunner
 
     // ── Batch Processing routing (T3.x) ─────────────────────────────
 
+    /// <summary>
+    /// Routes a T3.x batch processing test to the correct serialization setup method
+    /// based on the test's format (Avro/JSON) and payload size (Small/Large).
+    /// </summary>
     private async Task<TestResult> RunBatchAsync(TestDefinition test, int runNumber,
         Action<int, TimeSpan>? onProgress)
     {
@@ -146,6 +158,11 @@ public class ProducerTestRunner
 
     // ── Fire-and-Forget Avro SpecificRecord setup ───────────────────
 
+    /// <summary>
+    /// Configures an Avro SpecificRecord producer for fire-and-forget (T1.x) tests.
+    /// Both key and value serializers use AsSyncOverAsync() because the delivery-handler
+    /// Produce() API requires synchronous serializers.
+    /// </summary>
     private async Task<TestResult> RunFireAndForgetAvroSpecificAsync<T>(
         TestDefinition test, int runNumber,
         ITestDataFactory<T> factory,
@@ -156,6 +173,7 @@ public class ProducerTestRunner
         using var schemaRegistry = new CachedSchemaRegistryClient(BuildSchemaRegistryConfig());
         var avroConfig = new AvroSerializerConfig { AutoRegisterSchemas = false, UseLatestVersion = true };
 
+        // Wrap async Avro serializers as sync — required by the Produce() (non-async) API.
         var keySerializer = new AvroSerializer<int>(schemaRegistry, avroConfig);
         var valueSerializer = new AvroSerializer<T>(schemaRegistry, avroConfig);
 
@@ -170,6 +188,11 @@ public class ProducerTestRunner
 
     // ── Fire-and-Forget JSON setup ──────────────────────────────────
 
+    /// <summary>
+    /// Configures a JSON Schema producer for fire-and-forget (T1.x) tests.
+    /// The JSON serializer is wrapped as sync via AsSyncOverAsync() because the
+    /// delivery-handler Produce() API requires synchronous serializers.
+    /// </summary>
     private async Task<TestResult> RunFireAndForgetJsonTypedAsync<T>(
         TestDefinition test, int runNumber,
         ITestDataFactory<T> factory,
@@ -182,6 +205,7 @@ public class ProducerTestRunner
 
         var jsonSerializer = new JsonSerializer<T>(schemaRegistry, jsonConfig);
 
+        // Wrap async JSON serializer as sync — required by the Produce() (non-async) API.
         using var producer = new ProducerBuilder<int, T>(producerConfig)
             .SetValueSerializer(jsonSerializer.AsSyncOverAsync())
             .Build();
@@ -192,6 +216,11 @@ public class ProducerTestRunner
 
     // ── Request-Response Avro SpecificRecord setup ──────────────────
 
+    /// <summary>
+    /// Configures an Avro SpecificRecord producer for request-response (T2.x) tests.
+    /// The value serializer stays async (used by ProduceAsync); the key serializer is
+    /// wrapped as sync because ProduceAsync serializes the key synchronously.
+    /// </summary>
     private async Task<TestResult> RunRequestResponseAvroSpecificAsync<T>(
         TestDefinition test, int runNumber,
         ITestDataFactory<T> factory,
@@ -215,6 +244,10 @@ public class ProducerTestRunner
 
     // ── Request-Response JSON setup ─────────────────────────────────
 
+    /// <summary>
+    /// Configures a JSON Schema producer for request-response (T2.x) tests.
+    /// The JSON serializer is set as the async value serializer for ProduceAsync.
+    /// </summary>
     private async Task<TestResult> RunRequestResponseJsonTypedAsync<T>(
         TestDefinition test, int runNumber,
         ITestDataFactory<T> factory,
@@ -237,6 +270,11 @@ public class ProducerTestRunner
 
     // ── Batch Avro SpecificRecord setup (T3.x) ─────────────────────
 
+    /// <summary>
+    /// Configures an Avro SpecificRecord producer for batch window (T3.x) tests.
+    /// The value serializer stays async for ProduceAsync; the concurrency window size
+    /// controls how many messages are collected before awaiting Task.WhenAll.
+    /// </summary>
     private async Task<TestResult> RunBatchAvroSpecificAsync<T>(
         TestDefinition test, int runNumber,
         ITestDataFactory<T> factory,
@@ -260,6 +298,12 @@ public class ProducerTestRunner
 
     // ── Batch JSON setup (T3.x) ────────────────────────────────────
 
+    /// <summary>
+    /// Configures a JSON Schema producer for batch window (T3.x) tests.
+    /// The JSON serializer is set as the async value serializer for ProduceAsync;
+    /// the concurrency window size controls how many messages are collected before
+    /// awaiting Task.WhenAll.
+    /// </summary>
     private async Task<TestResult> RunBatchJsonTypedAsync<T>(
         TestDefinition test, int runNumber,
         ITestDataFactory<T> factory,
@@ -443,6 +487,8 @@ public class ProducerTestRunner
         Func<TValue, int, long> estimateBytes,
         Action<int, TimeSpan>? onProgress)
     {
+        // Resource monitor starts sampling CPU/memory; error counter and message
+        // counter initialized; stopwatch starts the benchmark clock.
         using var monitor = new ResourceMonitor();
         var errors = 0;
         var messageCount = 0;
@@ -450,14 +496,21 @@ public class ProducerTestRunner
 
         var sw = Stopwatch.StartNew();
 
+        // Outer loop: keep producing until message count limit or duration timeout is reached.
         while (ShouldContinueProducing(test, messageCount, sw))
         {
+            // Cap the batch to remaining messages so the last batch doesn't overshoot.
             var remaining = test.MessageCount - messageCount;
             var batch = Math.Min(windowSize, remaining);
             if (batch <= 0) break;
 
+            // Pre-allocate the list of in-flight ProduceAsync tasks for this batch window.
             var tasks = new List<Task<DeliveryResult<int, TValue>>>(batch);
 
+            // Inner loop collects up to `windowSize` ProduceAsync calls with a deadline.
+            // Each ProduceAsync returns a Task immediately (message queued in librdkafka's
+            // buffer, not yet sent). The deadline prevents indefinite waiting in production
+            // when events arrive slower than the window size.
             var batchDeadline = DateTime.UtcNow.AddSeconds(_testSettings.BatchTimeoutSeconds);
             while (tasks.Count < batch
                 && DateTime.UtcNow < batchDeadline
@@ -469,9 +522,14 @@ public class ProducerTestRunner
                 tasks.Add(producer.ProduceAsync(test.Topic, message));
             }
 
+            // Safety: if no messages were collected (deadline expired with no events), exit.
             if (tasks.Count == 0) break;
 
+            // Task.WhenAll: await all in-flight messages concurrently — this is the core
+            // throughput optimization vs T2.x which awaits each message one-by-one.
             var results = await Task.WhenAll(tasks);
+            // Check each DeliveryResult: NotPersisted means the broker did not acknowledge
+            // the message despite acks=all; log success/error for every message.
             foreach (var dr in results)
             {
                 if (dr.Status == PersistenceStatus.NotPersisted)
@@ -488,6 +546,7 @@ public class ProducerTestRunner
                 }
             }
 
+            // Throttle UI progress updates to once per second.
             if (onProgress != null && sw.Elapsed - lastProgressReport >= TimeSpan.FromSeconds(1))
             {
                 onProgress(messageCount, sw.Elapsed);
@@ -495,6 +554,8 @@ public class ProducerTestRunner
             }
         }
 
+        // Final Flush: drain any remaining in-flight messages that librdkafka hasn't
+        // sent yet (60s timeout).
         producer.Flush(TimeSpan.FromSeconds(60));
         sw.Stop();
 
@@ -518,6 +579,11 @@ public class ProducerTestRunner
 
     // ── Byte estimation helpers ─────────────────────────────────────
 
+    /// <summary>
+    /// Estimates total bytes produced for Avro SpecificRecord messages by serializing
+    /// one record to a MemoryStream and multiplying by the message count.
+    /// The +5 accounts for the Confluent Avro wire-format header (magic byte + 4-byte schema ID).
+    /// </summary>
     private static long EstimateAvroSpecificBytes<T>(T record, int messageCount) where T : ISpecificRecord
     {
         using var ms = new MemoryStream();
@@ -525,21 +591,34 @@ public class ProducerTestRunner
         var encoder = new Avro.IO.BinaryEncoder(ms);
         writer.Write(record, encoder);
         encoder.Flush();
+        // +5 = 1-byte magic + 4-byte schema ID (Confluent wire format header).
         var bytesPerMessage = ms.Length + 5;
         return bytesPerMessage * messageCount;
     }
 
+    /// <summary>
+    /// Estimates total bytes produced for JSON messages by serializing one record
+    /// to a JSON string and multiplying the UTF-8 byte length by the message count.
+    /// The +5 accounts for the Confluent JSON wire-format header (magic byte + 4-byte schema ID).
+    /// </summary>
     private static long EstimateJsonBytes<T>(T record, int messageCount)
     {
         var json = System.Text.Json.JsonSerializer.Serialize(record);
+        // +5 = 1-byte magic + 4-byte schema ID (Confluent wire format header).
         var bytesPerMessage = System.Text.Encoding.UTF8.GetByteCount(json) + 5;
         return (long)bytesPerMessage * messageCount;
     }
 
     // ── Shared helpers ──────────────────────────────────────────────
 
+    /// <summary>
+    /// Returns true while both conditions hold: the message count limit has not been
+    /// reached AND the optional duration timeout (if configured) has not expired.
+    /// Used as the guard for every produce loop's outer while condition.
+    /// </summary>
     private static bool ShouldContinueProducing(TestDefinition test, int messageCount, Stopwatch sw)
     {
+        // Two stop conditions (AND): message limit OR time limit (whichever comes first).
         return messageCount < test.MessageCount
             && (!test.Duration.HasValue || sw.Elapsed < test.Duration.Value);
     }
@@ -567,6 +646,10 @@ public class ProducerTestRunner
         return config;
     }
 
+    /// <summary>
+    /// Builds the Schema Registry client configuration with basic-auth credentials
+    /// for connecting to Confluent Cloud Schema Registry.
+    /// </summary>
     private SchemaRegistryConfig BuildSchemaRegistryConfig() => new()
     {
         Url = _srSettings.Url,
