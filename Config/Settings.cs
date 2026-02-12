@@ -36,8 +36,6 @@ public class TestSettings
     public int ConsumerRuns { get; set; } = 5;
     public int BatchTimeoutSeconds { get; set; } = 5;
     public string TopicPrefix { get; set; } = "test-";
-    public string AvroSmallTopic { get; set; } = "test-avro-small";
-    public string AvroLargeTopic { get; set; } = "test-avro-large";
     public string AvroSmallSpecificTopic { get; set; } = "test-avro-small-specificrecord";
     public string AvroLargeSpecificTopic { get; set; } = "test-avro-large-specificrecord";
     public string JsonSmallTopic { get; set; } = "test-json-small";
