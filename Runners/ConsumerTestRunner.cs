@@ -237,7 +237,7 @@ public class ConsumerTestRunner
         sw.Stop();
 
         // Commit any remaining uncommitted offsets before leaving the group
-        try { consumer.Commit(); } catch (TopicPartitionOffsetException) { }
+        try { consumer.Commit(); } catch (KafkaException) { }
 
         consumer.Close();   // Gracefully leave the consumer group
 
