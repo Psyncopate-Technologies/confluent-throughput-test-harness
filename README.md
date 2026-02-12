@@ -60,12 +60,12 @@ A final `consumer.Commit()` runs before `consumer.Close()` to flush any remainin
 
 | ID | Format | Payload | Commit Strategy | Batch Size | Topic |
 |----|--------|---------|-----------------|------------|-------|
-| **T4.1** | Avro | Small (27 fields) | ManualPerMessage | -- | `test-avro-small` |
-| **T4.2** | Avro | Large (106 fields) | ManualPerMessage | -- | `test-avro-large` |
+| **T4.1** | Avro | Small (27 fields) | ManualPerMessage | -- | `test-avro-small-specificrecord` |
+| **T4.2** | Avro | Large (106 fields) | ManualPerMessage | -- | `test-avro-large-specificrecord` |
 | **T4.3** | JSON | Small (27 fields) | ManualPerMessage | -- | `test-json-small` |
 | **T4.4** | JSON | Large (106 fields) | ManualPerMessage | -- | `test-json-large` |
-| **T4.5** | Avro | Small (27 fields) | ManualBatch | 100 | `test-avro-small` |
-| **T4.6** | Avro | Large (106 fields) | ManualBatch | 100 | `test-avro-large` |
+| **T4.5** | Avro | Small (27 fields) | ManualBatch | 100 | `test-avro-small-specificrecord` |
+| **T4.6** | Avro | Large (106 fields) | ManualBatch | 100 | `test-avro-large-specificrecord` |
 | **T4.7** | JSON | Small (27 fields) | ManualBatch | 100 | `test-json-small` |
 | **T4.8** | JSON | Large (106 fields) | ManualBatch | 100 | `test-json-large` |
 
@@ -193,17 +193,13 @@ confluent api-key create --service-account <SERVICE_ACCOUNT_ID> --resource <SR_C
 Create the test topics. The harness expects 1 partition per topic (to avoid partition-level variability in benchmarks) with a short retention:
 
 ```bash
-# Avro producer topics (SpecificRecord)
+# Avro topics (shared by producer and consumer tests)
 confluent kafka topic create test-avro-small-specificrecord --partitions 1 --config "retention.ms=3600000"
 confluent kafka topic create test-avro-large-specificrecord --partitions 1 --config "retention.ms=3600000"
 
-# JSON producer topics
+# JSON topics (shared by producer and consumer tests)
 confluent kafka topic create test-json-small --partitions 1 --config "retention.ms=3600000"
 confluent kafka topic create test-json-large --partitions 1 --config "retention.ms=3600000"
-
-# Consumer topics (shared Avro topics for T4.x consumer tests)
-confluent kafka topic create test-avro-small --partitions 1 --config "retention.ms=3600000"
-confluent kafka topic create test-avro-large --partitions 1 --config "retention.ms=3600000"
 ```
 
 ### 4. Schema Registration
@@ -221,14 +217,6 @@ confluent schema-registry schema create \
   --schema Schemas/test-avro-large-value.avsc --type avro
 
 confluent schema-registry schema create \
-  --subject test-avro-small-value \
-  --schema Schemas/test-avro-small-value.avsc --type avro
-
-confluent schema-registry schema create \
-  --subject test-avro-large-value \
-  --schema Schemas/test-avro-large-value.avsc --type avro
-
-confluent schema-registry schema create \
   --subject test-json-small-value \
   --schema Schemas/test-json-small-value.json --type json
 
@@ -238,8 +226,7 @@ confluent schema-registry schema create \
 
 # Key schemas — register for each topic subject
 for topic in test-avro-small-specificrecord \
-             test-avro-large-specificrecord \
-             test-avro-small test-avro-large; do
+             test-avro-large-specificrecord; do
   confluent schema-registry schema create \
     --subject "${topic}-key" \
     --schema Schemas/test-avro-key.avsc --type avro
@@ -297,10 +284,8 @@ Create `appsettings.Development.json` in the project root:
 | `Test` | `ConsumerRuns` | `3` | Number of runs per consumer test |
 | `Test` | `BatchTimeoutSeconds` | `5` | Time-bound deadline (seconds) for batch event collection in T3.x Task.WhenAll loop |
 | `Test` | `CommitBatchSize` | `100` | Number of messages between offset commits in ManualBatch consumer tests (T4.5--T4.8) |
-| `Test` | `AvroSmallTopic` | `test-avro-small` | Consumer topic for small Avro payloads |
-| `Test` | `AvroLargeTopic` | `test-avro-large` | Consumer topic for large Avro payloads |
-| `Test` | `AvroSmallSpecificTopic` | `test-avro-small-specificrecord` | Producer topic for Avro small SpecificRecord |
-| `Test` | `AvroLargeSpecificTopic` | `test-avro-large-specificrecord` | Producer topic for Avro large SpecificRecord |
+| `Test` | `AvroSmallSpecificTopic` | `test-avro-small-specificrecord` | Topic for Avro small SpecificRecord (producer + consumer) |
+| `Test` | `AvroLargeSpecificTopic` | `test-avro-large-specificrecord` | Topic for Avro large SpecificRecord (producer + consumer) |
 | `Test` | `JsonSmallTopic` | `test-json-small` | Topic for small JSON payloads |
 | `Test` | `JsonLargeTopic` | `test-json-large` | Topic for large JSON payloads |
 
