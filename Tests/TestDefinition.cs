@@ -29,7 +29,7 @@ public enum ProduceApi { Produce, ProduceAsync }
 /// RequestResponse = ProduceAsync + await each message individually.
 /// ConcurrencyWindow = fire N ProduceAsync calls, await all with Task.WhenAll.
 /// </summary>
-public enum CommitStrategy { DeliveryHandler, RequestResponse, ConcurrencyWindow }
+public enum CommitStrategy { DeliveryHandler, RequestResponse, ConcurrencyWindow, ManualPerMessage, ManualBatch }
 
 /// <summary>SpecificRecord for Avro; NotApplicable for JSON.</summary>
 public enum RecordType { SpecificRecord, NotApplicable }
@@ -45,7 +45,7 @@ public enum RecordType { SpecificRecord, NotApplicable }
 /// All producer tests use acks=all + enable.idempotence=true.
 /// Avro uses SpecificRecord only.
 ///
-/// Consumer tests (T4.1–T4.4) read from pre-populated topics.
+/// Consumer tests (T4.1–T4.8) read from pre-populated topics.
 /// </summary>
 public class TestDefinition
 {
@@ -62,11 +62,12 @@ public class TestDefinition
     public TimeSpan? Duration { get; init; }
     public int Runs { get; init; }
     public int ConcurrencyWindow { get; init; }
+    public int CommitBatchSize { get; init; }
 
     /// <summary>
     /// Builds the full test matrix from the provided settings.
     /// T1.x fire-and-forget (4 tests), T2.x request-response (4 tests),
-    /// T3.x batch processing (12 tests), T4.x consumer (4 tests) = 24 tests total.
+    /// T3.x batch processing (12 tests), T4.x consumer (8 tests) = 28 tests total.
     /// </summary>
     public static List<TestDefinition> GetAll(Config.TestSettings settings)
     {
@@ -178,52 +179,43 @@ public class TestDefinition
             }
         }
 
-        // ── T4.x Consumer tests ──────────────────────────────────────────
-        var consumerTests = new List<TestDefinition>
+        // ── T4.x Consumer tests (2 commit modes × 4 format/size combos) ─
+        var commitModes = new[]
         {
-            new()
-            {
-                Id = "T4.1", Name = "Consumer Avro Small",
-                Type = TestType.Consumer, Format = SerializationFormat.Avro,
-                Size = PayloadSize.Small, RecordType = RecordType.NotApplicable,
-                ProduceApi = ProduceApi.Produce, CommitStrategy = CommitStrategy.DeliveryHandler,
-                Topic = settings.AvroSmallTopic,
-                MessageCount = settings.MessageCount, Duration = duration,
-                Runs = consumerRuns
-            },
-            new()
-            {
-                Id = "T4.2", Name = "Consumer Avro Large",
-                Type = TestType.Consumer, Format = SerializationFormat.Avro,
-                Size = PayloadSize.Large, RecordType = RecordType.NotApplicable,
-                ProduceApi = ProduceApi.Produce, CommitStrategy = CommitStrategy.DeliveryHandler,
-                Topic = settings.AvroLargeTopic,
-                MessageCount = settings.MessageCount, Duration = duration,
-                Runs = consumerRuns
-            },
-            new()
-            {
-                Id = "T4.3", Name = "Consumer JSON Small",
-                Type = TestType.Consumer, Format = SerializationFormat.Json,
-                Size = PayloadSize.Small, RecordType = RecordType.NotApplicable,
-                ProduceApi = ProduceApi.Produce, CommitStrategy = CommitStrategy.DeliveryHandler,
-                Topic = settings.JsonSmallTopic,
-                MessageCount = settings.MessageCount, Duration = duration,
-                Runs = consumerRuns
-            },
-            new()
-            {
-                Id = "T4.4", Name = "Consumer JSON Large",
-                Type = TestType.Consumer, Format = SerializationFormat.Json,
-                Size = PayloadSize.Large, RecordType = RecordType.NotApplicable,
-                ProduceApi = ProduceApi.Produce, CommitStrategy = CommitStrategy.DeliveryHandler,
-                Topic = settings.JsonLargeTopic,
-                MessageCount = settings.MessageCount, Duration = duration,
-                Runs = consumerRuns
-            },
+            (Strategy: CommitStrategy.ManualPerMessage, Label: "PerMsg",  BatchSize: 0),
+            (Strategy: CommitStrategy.ManualBatch,      Label: "Batch",   BatchSize: settings.CommitBatchSize),
         };
 
-        tests.AddRange(consumerTests);
+        int t4Num = 1;
+        foreach (var mode in commitModes)
+        {
+            foreach (var format in new[] { SerializationFormat.Avro, SerializationFormat.Json })
+            {
+                foreach (var size in new[] { PayloadSize.Small, PayloadSize.Large })
+                {
+                    string topic = GetConsumerTopic(settings, format, size);
+
+                    tests.Add(new TestDefinition
+                    {
+                        Id = $"T4.{t4Num}",
+                        Name = BuildConsumerName(format, size, mode.Label),
+                        Type = TestType.Consumer,
+                        Format = format,
+                        Size = size,
+                        RecordType = RecordType.NotApplicable,
+                        ProduceApi = ProduceApi.Produce,
+                        CommitStrategy = mode.Strategy,
+                        Topic = topic,
+                        MessageCount = settings.MessageCount,
+                        Duration = duration,
+                        Runs = consumerRuns,
+                        CommitBatchSize = mode.BatchSize,
+                    });
+                    t4Num++;
+                }
+            }
+        }
+
         return tests;
     }
 
@@ -238,6 +230,24 @@ public class TestDefinition
             (SerializationFormat.Json, PayloadSize.Large) => settings.JsonLargeTopic,
             _ => throw new ArgumentOutOfRangeException()
         };
+    }
+
+    private static string GetConsumerTopic(
+        Config.TestSettings settings, SerializationFormat format, PayloadSize size)
+    {
+        return (format, size) switch
+        {
+            (SerializationFormat.Avro, PayloadSize.Small) => settings.AvroSmallTopic,
+            (SerializationFormat.Avro, PayloadSize.Large) => settings.AvroLargeTopic,
+            (SerializationFormat.Json, PayloadSize.Small) => settings.JsonSmallTopic,
+            (SerializationFormat.Json, PayloadSize.Large) => settings.JsonLargeTopic,
+            _ => throw new ArgumentOutOfRangeException()
+        };
+    }
+
+    private static string BuildConsumerName(SerializationFormat format, PayloadSize size, string modeLabel)
+    {
+        return $"Consumer {format} {size} {modeLabel}";
     }
 
     private static string BuildFireAndForgetName(SerializationFormat format, PayloadSize size)

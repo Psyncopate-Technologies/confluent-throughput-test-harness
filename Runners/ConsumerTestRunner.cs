@@ -139,6 +139,11 @@ public class ConsumerTestRunner
     /// mode, timeouts are expected when the topic is temporarily drained and the loop
     /// continues until the time limit expires.
     ///
+    /// Offset commits are manual (EnableAutoCommit = false):
+    ///   ManualPerMessage: consumer.Commit(result) after every message.
+    ///   ManualBatch: consumer.Commit() every CommitBatchSize messages.
+    /// A final consumer.Commit() runs before Close() to flush any stragglers.
+    ///
     /// Partition EOF events are skipped (they are informational, not errors).
     /// ConsumeExceptions are counted as errors; if errors exceed 100, the run is
     /// aborted to prevent infinite error loops.
@@ -199,6 +204,18 @@ public class ConsumerTestRunner
 
                 messagesConsumed++;
 
+                // Manual offset commit based on the test's commit strategy
+                if (test.CommitStrategy == CommitStrategy.ManualPerMessage)
+                {
+                    consumer.Commit(result);
+                }
+                else if (test.CommitStrategy == CommitStrategy.ManualBatch
+                    && test.CommitBatchSize > 0
+                    && messagesConsumed % test.CommitBatchSize == 0)
+                {
+                    consumer.Commit();
+                }
+
                 // Report progress approximately every second for live UI updates
                 if (onProgress != null && sw.Elapsed - lastProgressReport >= TimeSpan.FromSeconds(1))
                 {
@@ -218,6 +235,10 @@ public class ConsumerTestRunner
         }
 
         sw.Stop();
+
+        // Commit any remaining uncommitted offsets before leaving the group
+        try { consumer.Commit(); } catch (TopicPartitionOffsetException) { }
+
         consumer.Close();   // Gracefully leave the consumer group
 
         return new TestResult
@@ -228,6 +249,8 @@ public class ConsumerTestRunner
             MessageCount = messagesConsumed,
             TotalBytes = getBytesConsumed(),
             Elapsed = sw.Elapsed,
+            ProduceApi = test.ProduceApi.ToString(),
+            CommitStrategy = test.CommitStrategy.ToString(),
             PeakCpuPercent = monitor.PeakCpuPercent,
             PeakMemoryBytes = monitor.PeakMemoryBytes,
             DeliveryErrors = errors
@@ -256,7 +279,7 @@ public class ConsumerTestRunner
             SaslPassword = _kafkaSettings.SaslPassword,
             GroupId = $"throughput-test-{testId}-run-{runNumber}-{Guid.NewGuid():N}",
             AutoOffsetReset = AutoOffsetReset.Earliest,
-            EnableAutoCommit = true,
+            EnableAutoCommit = false,
             FetchMinBytes = 1,
             FetchMaxBytes = 52_428_800, // 50MB
             MaxPartitionFetchBytes = 10_485_760, // 10MB

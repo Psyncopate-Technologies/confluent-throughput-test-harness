@@ -42,4 +42,5 @@ public class TestSettings
     public string AvroLargeSpecificTopic { get; set; } = "test-avro-large-specificrecord";
     public string JsonSmallTopic { get; set; } = "test-json-small";
     public string JsonLargeTopic { get; set; } = "test-json-large";
+    public int CommitBatchSize { get; set; } = 100;
 }
