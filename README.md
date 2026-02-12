@@ -4,7 +4,7 @@ A .NET 10 console application that benchmarks **Avro vs JSON** serialization thr
 
 ## Test Matrix
 
-The harness runs **20 tests**: 4 fire-and-forget producer tests (T1.1--T1.4), 4 request-response producer tests (T2.1--T2.4), 8 batch processing producer tests (T3.1--T3.8), and 4 consumer tests (T4.1--T4.4).
+The harness runs **24 tests**: 4 fire-and-forget producer tests (T1.1--T1.4), 4 request-response producer tests (T2.1--T2.4), 12 batch processing producer tests (T3.1--T3.12), and 4 consumer tests (T4.1--T4.4).
 
 Each test run uses **hybrid termination**: it stops when **either** the message count limit (default 100,000) or the time limit (default 1 minute) is reached -- whichever comes first. Each test runs 3 times by default.
 
@@ -32,18 +32,22 @@ Synchronous pattern using `ProduceAsync` + await each message individually. Mode
 
 ### Batch Processing Producer Tests (T3.x)
 
-Concurrent pattern using `ProduceAsync` + `Task.WhenAll` concurrency windows. Fire N `ProduceAsync` calls concurrently, await all, check each `DeliveryResult` for errors. Window sizes 10 and 100 simulate different levels of concurrent in-flight messages. Batch collection uses a time-bound deadline (`BatchTimeoutSeconds`, default 5s) to prevent indefinite waiting when fewer events arrive than the window size.
+Concurrent pattern using `ProduceAsync` + `Task.WhenAll` concurrency windows. Fire N `ProduceAsync` calls concurrently, await all, check each `DeliveryResult` for errors. Window sizes 1, 10, and 100 simulate different levels of concurrent in-flight messages, from single sequential messages to 100 concurrent background tasks. Batch collection uses a time-bound deadline (`BatchTimeoutSeconds`, default 5s) to prevent indefinite waiting when fewer events arrive than the window size.
 
 | ID | Format | Payload | Window | Name |
 |----|--------|---------|--------|------|
-| **T3.1** | Avro | Small | 10 | Batch Avro Small Window-10 |
-| **T3.2** | Avro | Small | 100 | Batch Avro Small Window-100 |
-| **T3.3** | Avro | Large | 10 | Batch Avro Large Window-10 |
-| **T3.4** | Avro | Large | 100 | Batch Avro Large Window-100 |
-| **T3.5** | JSON | Small | 10 | Batch JSON Small Window-10 |
-| **T3.6** | JSON | Small | 100 | Batch JSON Small Window-100 |
-| **T3.7** | JSON | Large | 10 | Batch JSON Large Window-10 |
-| **T3.8** | JSON | Large | 100 | Batch JSON Large Window-100 |
+| **T3.1** | Avro | Small | 1 | Batch Avro Small Window-1 |
+| **T3.2** | Avro | Small | 10 | Batch Avro Small Window-10 |
+| **T3.3** | Avro | Small | 100 | Batch Avro Small Window-100 |
+| **T3.4** | Avro | Large | 1 | Batch Avro Large Window-1 |
+| **T3.5** | Avro | Large | 10 | Batch Avro Large Window-10 |
+| **T3.6** | Avro | Large | 100 | Batch Avro Large Window-100 |
+| **T3.7** | JSON | Small | 1 | Batch JSON Small Window-1 |
+| **T3.8** | JSON | Small | 10 | Batch JSON Small Window-10 |
+| **T3.9** | JSON | Small | 100 | Batch JSON Small Window-100 |
+| **T3.10** | JSON | Large | 1 | Batch JSON Large Window-1 |
+| **T3.11** | JSON | Large | 10 | Batch JSON Large Window-10 |
+| **T3.12** | JSON | Large | 100 | Batch JSON Large Window-100 |
 
 ### Consumer Tests (T4.x)
 
@@ -305,7 +309,7 @@ dotnet build
 | `--producer-only` | Run only producer tests (T1.x--T3.x) |
 | `--consumer-only` | Run only consumer tests (T4.1--T4.4) |
 | `--test <ID>` | Run a single test by ID (e.g., `T1.1`, `T4.3`) |
-| `--test <start>-<end>` | Run a range of tests (e.g., `T3.1-T3.8`) |
+| `--test <start>-<end>` | Run a range of tests (e.g., `T3.1-T3.12`) |
 | `--test <ID>,<ID>,...` | Run a comma-separated list (e.g., `T1.1,T2.1,T3.1`) |
 | `--duration <N>` | Override duration minutes from CLI (e.g., `--duration 10`) |
 | `--help` | Show usage information and full test list |
@@ -315,7 +319,7 @@ dotnet build
 ```bash
 # ── Hybrid Mode (default: 100K msgs or 1 min, whichever first) ────
 
-# Run all 20 tests (T1.x fire-and-forget, T2.x request-response, T3.x batch, T4.x consumers)
+# Run all 24 tests (T1.x fire-and-forget, T2.x request-response, T3.x batch, T4.x consumers)
 dotnet run
 
 # Run only producer tests (T1.x + T2.x + T3.x)
@@ -331,7 +335,7 @@ dotnet run -- --test T1.1
 dotnet run -- --test T2.1
 
 # Run all batch processing tests
-dotnet run -- --test T3.1-T3.8
+dotnet run -- --test T3.1-T3.12
 
 # Run specific tests by comma-separated list
 dotnet run -- --test T1.1,T2.1,T3.1
@@ -346,7 +350,7 @@ dotnet run -- --producer-only --duration 15
 # To disable the time limit and use only message count,
 # set "DurationMinutes": null in appsettings.json, then:
 
-# Run all 20 tests with 100K messages per run (no time limit)
+# Run all 24 tests with 100K messages per run (no time limit)
 dotnet run
 
 # ── Help ───────────────────────────────────────────────────────────
@@ -360,10 +364,10 @@ dotnet run -- --help
 1. The application loads configuration from `appsettings.json`, `appsettings.Development.json`, and environment variables.
 2. Both Avro schemas are parsed from the `Schemas/` directory. Custom logical types (`varchar`, `char`) are registered to handle the freight schema.
 3. CLI arguments are parsed to determine which tests to run and whether to override the duration.
-4. The full 20-test matrix is generated from `TestDefinition.GetAll()`, then filtered by CLI flags (`--test`, `--producer-only`, `--consumer-only`).
+4. The full 24-test matrix is generated from `TestDefinition.GetAll()`, then filtered by CLI flags (`--test`, `--producer-only`, `--consumer-only`).
 5. **Fire-and-Forget producer tests (T1.1--T1.4)** use `Produce` (fire-and-forget) with a delivery handler callback + `acks=all` + `enable.idempotence=true`.
 6. **Request-Response producer tests (T2.1--T2.4)** use `ProduceAsync` + await each message individually + `acks=all` + `enable.idempotence=true`.
-7. **Batch Processing producer tests (T3.1--T3.8)** fire N `ProduceAsync` calls concurrently via `Task.WhenAll` (window sizes 10, 100) + `acks=all` + `enable.idempotence=true`. Batch collection uses a time-bound deadline to prevent indefinite waiting.
+7. **Batch Processing producer tests (T3.1--T3.12)** fire N `ProduceAsync` calls concurrently via `Task.WhenAll` (window sizes 1, 10, 100) + `acks=all` + `enable.idempotence=true`. Batch collection uses a time-bound deadline to prevent indefinite waiting.
 8. **Consumer tests (T4.1--T4.4)** run last, each consuming messages from their configured topics with the same hybrid termination logic. Each run uses a unique consumer group (`throughput-test-{TestId}-run-{N}-{guid}`) to read from offset 0.
 9. A formatted results table is printed to the console with per-run and averaged metrics, including API, Commit Strategy, Concurrency Window, and Record Type columns.
 10. Results are exported to a timestamped CSV file and an interactive HTML report in `bin/Debug/net10.0/results/`.
@@ -423,7 +427,7 @@ confluent-throughput-test-harness/
 │   ├── JsonSmallDataFactory.cs                 # POCO builder (27 fields)
 │   └── JsonLargeDataFactory.cs                 # POCO builder (106 fields)
 ├── Tests/
-│   ├── TestDefinition.cs                       # Enums, 20-test matrix generation (T1.x–T4.x)
+│   ├── TestDefinition.cs                       # Enums, 24-test matrix generation (T1.x–T4.x)
 │   ├── TestResult.cs                           # Per-run metrics (incl. API, Commit, Window, RecordType)
 │   ├── TestSuite.cs                            # Aggregation and averages
 │   └── ThroughputSample.cs                     # Time-series throughput snapshot
@@ -445,7 +449,7 @@ confluent-throughput-test-harness/
 - **SpecificRecord only for Avro** -- GenericRecord removed (negligible performance difference in benchmarks). The freight schema uses custom logical types (`varchar`, `char`) that are incompatible with `avrogen` code generation. The `ISpecificRecord` implementations (`FreightSmallSpecific`, `FreightLargeSpecific`) were generated by a .NET Source Generator.
 - **POCO classes for JSON** -- The `Confluent.SchemaRegistry.Serdes.Json` serializer works with plain C# classes annotated with `System.Text.Json` attributes.
 - **Time-bound batch collection** -- The T3.x batch loop uses a `BatchTimeoutSeconds` deadline (default 5s) when collecting events for the `Task.WhenAll` window. This prevents indefinite waiting when fewer events arrive than the window size. In the test harness messages generate instantly so the timeout won't fire, but the code demonstrates the production pattern.
-- **Concurrency window sizes 10 and 100** -- Reduced from 4 sizes (1, 10, 50, 100) to 2 sizes (10, 100). Window-1 is effectively request-response (now T2.x) and window-50 added little insight between 10 and 100.
+- **Concurrency window sizes 1, 10, and 100** -- Window-1 provides a sequential baseline within the batch pattern for direct comparison against higher concurrency levels. Window-50 was removed as it added little insight between 10 and 100.
 - **Separate producer topics per record type** -- Avro SpecificRecord tests write to dedicated topics (e.g., `test-avro-small-specificrecord`) to avoid cross-contamination of benchmark data.
 - **Pre-registered schemas** -- All schemas are registered ahead of time. Serializers use `AutoRegisterSchemas = false` and `UseLatestVersion = true` to look up schemas by subject at runtime.
 - **Integer keys** -- All messages use sequential integer keys (1, 2, 3, ...) serialized with `AvroSerializer<int>` for Avro topics or `JsonSerializer<T>` / default `Serializers.Int32` for JSON topics.

@@ -95,11 +95,11 @@ var smallSchema = (RecordSchema)Schema.Parse(smallSchemaJson);
 var largeSchema = (RecordSchema)Schema.Parse(largeSchemaJson);
 
 // ── Build Test Definitions ───────────────────────────────────────────
-// Generate the 20-test scenario-based matrix:
-//   T1.1-T1.4  fire-and-forget producers (Produce + delivery handler)
-//   T2.1-T2.4  request-response producers (ProduceAsync + await each)
-//   T3.1-T3.8  batch processing producers (ProduceAsync + Task.WhenAll windows)
-//   T4.1-T4.4  consumers
+// Generate the 24-test scenario-based matrix:
+//   T1.1-T1.4   fire-and-forget producers (Produce + delivery handler)
+//   T2.1-T2.4   request-response producers (ProduceAsync + await each)
+//   T3.1-T3.12  batch processing producers (ProduceAsync + Task.WhenAll windows 1/10/100)
+//   T4.1-T4.4   consumers
 // then filter based on CLI arguments.
 var allTests = TestDefinition.GetAll(testSettings);
 var testsToRun = allTests.AsEnumerable();
@@ -299,12 +299,12 @@ static void PrintHelp()
     AnsiConsole.MarkupLine("[grey]Benchmarks Avro vs JSON serialization throughput with Confluent Cloud[/]");
     AnsiConsole.WriteLine();
     AnsiConsole.MarkupLine("[bold]Usage:[/]");
-    AnsiConsole.MarkupLine("  dotnet run                        Run all 20 tests");
+    AnsiConsole.MarkupLine("  dotnet run                        Run all 24 tests");
     AnsiConsole.MarkupLine("  dotnet run -- --duration 10       Run all tests for 10 minutes each");
     AnsiConsole.MarkupLine("  dotnet run -- --producer-only     Run only producer tests (T1.x–T3.x)");
     AnsiConsole.MarkupLine("  dotnet run -- --consumer-only     Run only consumer tests (T4.x)");
     AnsiConsole.MarkupLine("  dotnet run -- --test T1.1         Run a specific test");
-    AnsiConsole.MarkupLine("  dotnet run -- --test T3.1-T3.8    Run a range of tests");
+    AnsiConsole.MarkupLine("  dotnet run -- --test T3.1-T3.12   Run a range of tests");
     AnsiConsole.MarkupLine("  dotnet run -- --test T1.1,T2.1    Run a comma-separated list of tests");
     AnsiConsole.MarkupLine("  dotnet run -- --refresh-schemas   Re-download schemas from Schema Registry");
     AnsiConsole.MarkupLine("  dotnet run -- --help              Show this help");
@@ -329,13 +329,13 @@ static void PrintHelp()
     AnsiConsole.MarkupLine("[bold]Batch Processing (T3.x):[/]");
     AnsiConsole.MarkupLine("  [grey]ProduceAsync + Task.WhenAll concurrency windows[/]");
     AnsiConsole.MarkupLine("  [grey]Avro Small:[/]");
-    AnsiConsole.MarkupLine("    T3.1  Window-10     T3.2  Window-100");
+    AnsiConsole.MarkupLine("    T3.1  Window-1      T3.2  Window-10     T3.3  Window-100");
     AnsiConsole.MarkupLine("  [grey]Avro Large:[/]");
-    AnsiConsole.MarkupLine("    T3.3  Window-10     T3.4  Window-100");
+    AnsiConsole.MarkupLine("    T3.4  Window-1      T3.5  Window-10     T3.6  Window-100");
     AnsiConsole.MarkupLine("  [grey]JSON Small:[/]");
-    AnsiConsole.MarkupLine("    T3.5  Window-10     T3.6  Window-100");
+    AnsiConsole.MarkupLine("    T3.7  Window-1      T3.8  Window-10     T3.9  Window-100");
     AnsiConsole.MarkupLine("  [grey]JSON Large:[/]");
-    AnsiConsole.MarkupLine("    T3.7  Window-10     T3.8  Window-100");
+    AnsiConsole.MarkupLine("    T3.10 Window-1      T3.11 Window-10     T3.12 Window-100");
     AnsiConsole.WriteLine();
     AnsiConsole.MarkupLine("[bold]Consumer Tests (T4.x):[/]");
     AnsiConsole.MarkupLine("  T4.1  Consumer Avro Small");

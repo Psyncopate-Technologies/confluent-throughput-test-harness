@@ -40,7 +40,7 @@ public enum RecordType { SpecificRecord, NotApplicable }
 /// Scenario-based producer tests:
 ///   T1.x Fire-and-Forget:  Produce + delivery handler callback
 ///   T2.x Request-Response: ProduceAsync + await each message
-///   T3.x Batch Processing: ProduceAsync + Task.WhenAll concurrency windows (10, 100)
+///   T3.x Batch Processing: ProduceAsync + Task.WhenAll concurrency windows (1, 10, 100)
 ///
 /// All producer tests use acks=all + enable.idempotence=true.
 /// Avro uses SpecificRecord only.
@@ -66,7 +66,7 @@ public class TestDefinition
     /// <summary>
     /// Builds the full test matrix from the provided settings.
     /// T1.x fire-and-forget (4 tests), T2.x request-response (4 tests),
-    /// T3.x batch processing (8 tests), T4.x consumer (4 tests) = 20 tests total.
+    /// T3.x batch processing (12 tests), T4.x consumer (4 tests) = 24 tests total.
     /// </summary>
     public static List<TestDefinition> GetAll(Config.TestSettings settings)
     {
@@ -142,7 +142,7 @@ public class TestDefinition
         }
 
         // ── T3.x Batch Processing (ProduceAsync + Task.WhenAll) ──────────
-        var windows = new[] { 10, 100 };
+        var windows = new[] { 1, 10, 100 };
         int t3Num = 1;
 
         foreach (var format in new[] { SerializationFormat.Avro, SerializationFormat.Json })
