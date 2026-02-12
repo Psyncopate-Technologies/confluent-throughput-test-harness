@@ -237,8 +237,8 @@ public class TestDefinition
     {
         return (format, size) switch
         {
-            (SerializationFormat.Avro, PayloadSize.Small) => settings.AvroSmallTopic,
-            (SerializationFormat.Avro, PayloadSize.Large) => settings.AvroLargeTopic,
+            (SerializationFormat.Avro, PayloadSize.Small) => settings.AvroSmallSpecificTopic,
+            (SerializationFormat.Avro, PayloadSize.Large) => settings.AvroLargeSpecificTopic,
             (SerializationFormat.Json, PayloadSize.Small) => settings.JsonSmallTopic,
             (SerializationFormat.Json, PayloadSize.Large) => settings.JsonLargeTopic,
             _ => throw new ArgumentOutOfRangeException()
