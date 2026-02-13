@@ -1,6 +1,6 @@
 # Confluent Kafka .NET Producer & Consumer Throughput Benchmark Report
 
-**Test Date:** February 12--13, 2026
+**Test Date:** February 13, 2026
 **Prepared for:** TQL
 **Cluster:** Confluent Cloud (us-east-2, AWS)
 
