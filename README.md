@@ -60,20 +60,20 @@ Same concurrency window pattern as T3.x, but with a configurable inter-message d
 
 Users can tune `InterMessageDelayMs` higher to trigger partial batches on smaller windows, or lower for faster arrival rates.
 
-| ID | Format | Payload | Window | Name |
-|----|--------|---------|--------|------|
-| **T3B.1** | Avro | Small | 1 | Batch-Realistic Avro Small Window-1 |
-| **T3B.2** | Avro | Small | 10 | Batch-Realistic Avro Small Window-10 |
-| **T3B.3** | Avro | Small | 100 | Batch-Realistic Avro Small Window-100 |
-| **T3B.4** | Avro | Large | 1 | Batch-Realistic Avro Large Window-1 |
-| **T3B.5** | Avro | Large | 10 | Batch-Realistic Avro Large Window-10 |
-| **T3B.6** | Avro | Large | 100 | Batch-Realistic Avro Large Window-100 |
-| **T3B.7** | JSON | Small | 1 | Batch-Realistic JSON Small Window-1 |
-| **T3B.8** | JSON | Small | 10 | Batch-Realistic JSON Small Window-10 |
-| **T3B.9** | JSON | Small | 100 | Batch-Realistic JSON Small Window-100 |
-| **T3B.10** | JSON | Large | 1 | Batch-Realistic JSON Large Window-1 |
-| **T3B.11** | JSON | Large | 10 | Batch-Realistic JSON Large Window-10 |
-| **T3B.12** | JSON | Large | 100 | Batch-Realistic JSON Large Window-100 |
+| ID | Format | Payload | Window | Delay (ms) | Name |
+|----|--------|---------|--------|------------|------|
+| **T3B.1** | Avro | Small | 1 | 100 | Batch-Realistic Avro Small Window-1 |
+| **T3B.2** | Avro | Small | 10 | 100 | Batch-Realistic Avro Small Window-10 |
+| **T3B.3** | Avro | Small | 100 | 100 | Batch-Realistic Avro Small Window-100 |
+| **T3B.4** | Avro | Large | 1 | 100 | Batch-Realistic Avro Large Window-1 |
+| **T3B.5** | Avro | Large | 10 | 100 | Batch-Realistic Avro Large Window-10 |
+| **T3B.6** | Avro | Large | 100 | 100 | Batch-Realistic Avro Large Window-100 |
+| **T3B.7** | JSON | Small | 1 | 100 | Batch-Realistic JSON Small Window-1 |
+| **T3B.8** | JSON | Small | 10 | 100 | Batch-Realistic JSON Small Window-10 |
+| **T3B.9** | JSON | Small | 100 | 100 | Batch-Realistic JSON Small Window-100 |
+| **T3B.10** | JSON | Large | 1 | 100 | Batch-Realistic JSON Large Window-1 |
+| **T3B.11** | JSON | Large | 10 | 100 | Batch-Realistic JSON Large Window-10 |
+| **T3B.12** | JSON | Large | 100 | 100 | Batch-Realistic JSON Large Window-100 |
 
 ### Consumer Tests (T4.x)
 
