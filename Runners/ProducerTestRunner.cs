@@ -476,7 +476,9 @@ public class ProducerTestRunner
     /// Batch produce loop that fires windowSize ProduceAsync calls concurrently,
     /// awaits all with Task.WhenAll, and checks each DeliveryResult for errors.
     /// Uses a time-bound batch collection to prevent indefinite waiting when fewer
-    /// events arrive than the window size.
+    /// events arrive than the window size. When InterMessageDelayMs > 0 (T3B.x tests),
+    /// an artificial delay is inserted between each ProduceAsync call to simulate
+    /// realistic message arrival rates.
     /// </summary>
     private async Task<TestResult> RunConcurrencyWindowLoopAsync<TValue>(
         TestDefinition test, int runNumber,
@@ -511,7 +513,7 @@ public class ProducerTestRunner
             // Each ProduceAsync returns a Task immediately (message queued in librdkafka's
             // buffer, not yet sent). The deadline prevents indefinite waiting in production
             // when events arrive slower than the window size.
-            var batchDeadline = DateTime.UtcNow.AddSeconds(_testSettings.BatchTimeoutSeconds);
+            var batchDeadline = DateTime.UtcNow.AddMilliseconds(_testSettings.BatchTimeoutMs);
             while (tasks.Count < batch
                 && DateTime.UtcNow < batchDeadline
                 && ShouldContinueProducing(test, messageCount, sw))
@@ -520,6 +522,9 @@ public class ProducerTestRunner
                 factory.SetMessageHeader(record, messageCount, DateTime.UtcNow.ToString("O"));
                 var message = new Message<int, TValue> { Key = messageCount, Value = record };
                 tasks.Add(producer.ProduceAsync(test.Topic, message));
+
+                if (test.InterMessageDelayMs > 0)
+                    await Task.Delay(test.InterMessageDelayMs);
             }
 
             // Safety: if no messages were collected (deadline expired with no events), exit.

@@ -41,11 +41,14 @@ public enum RecordType { SpecificRecord, NotApplicable }
 ///   T1.x Fire-and-Forget:  Produce + delivery handler callback
 ///   T2.x Request-Response: ProduceAsync + await each message
 ///   T3.x Batch Processing: ProduceAsync + Task.WhenAll concurrency windows (1, 10, 100)
+///   T3B.x Business-Realistic Batch: same as T3.x but with inter-message delay
 ///
 /// All producer tests use acks=all + enable.idempotence=true.
 /// Avro uses SpecificRecord only.
 ///
 /// Consumer tests (T4.1–T4.8) read from pre-populated topics.
+///
+/// Total: 40 tests (4 + 4 + 12 + 12 + 8).
 /// </summary>
 public class TestDefinition
 {
@@ -63,11 +66,14 @@ public class TestDefinition
     public int Runs { get; init; }
     public int ConcurrencyWindow { get; init; }
     public int CommitBatchSize { get; init; }
+    public int CommitIntervalMs { get; init; }
+    public int InterMessageDelayMs { get; init; }
 
     /// <summary>
     /// Builds the full test matrix from the provided settings.
     /// T1.x fire-and-forget (4 tests), T2.x request-response (4 tests),
-    /// T3.x batch processing (12 tests), T4.x consumer (8 tests) = 28 tests total.
+    /// T3.x batch processing (12 tests), T3B.x business-realistic batch (12 tests),
+    /// T4.x consumer (8 tests) = 40 tests total.
     /// </summary>
     public static List<TestDefinition> GetAll(Config.TestSettings settings)
     {
@@ -179,11 +185,45 @@ public class TestDefinition
             }
         }
 
+        // ── T3B.x Business-Realistic Batch (ProduceAsync + Task.WhenAll + inter-message delay)
+        int t3bNum = 1;
+        foreach (var format in new[] { SerializationFormat.Avro, SerializationFormat.Json })
+        {
+            foreach (var size in new[] { PayloadSize.Small, PayloadSize.Large })
+            {
+                var recordType = format == SerializationFormat.Avro
+                    ? RecordType.SpecificRecord
+                    : RecordType.NotApplicable;
+                string topic = GetProducerTopic(settings, format, size);
+                foreach (var window in windows)
+                {
+                    tests.Add(new TestDefinition
+                    {
+                        Id = $"T3B.{t3bNum}",
+                        Name = BuildBatchRealisticName(format, size, window),
+                        Type = TestType.Producer,
+                        Format = format,
+                        Size = size,
+                        RecordType = recordType,
+                        ProduceApi = ProduceApi.ProduceAsync,
+                        CommitStrategy = CommitStrategy.ConcurrencyWindow,
+                        Topic = topic,
+                        MessageCount = settings.MessageCount,
+                        Duration = duration,
+                        Runs = producerRuns,
+                        ConcurrencyWindow = window,
+                        InterMessageDelayMs = settings.InterMessageDelayMs,
+                    });
+                    t3bNum++;
+                }
+            }
+        }
+
         // ── T4.x Consumer tests (2 commit modes × 4 format/size combos) ─
         var commitModes = new[]
         {
-            (Strategy: CommitStrategy.ManualPerMessage, Label: "PerMsg",  BatchSize: 0),
-            (Strategy: CommitStrategy.ManualBatch,      Label: "Batch",   BatchSize: settings.CommitBatchSize),
+            (Strategy: CommitStrategy.ManualPerMessage, Label: "PerMsg",  BatchSize: 0,                       IntervalMs: 0),
+            (Strategy: CommitStrategy.ManualBatch,      Label: "Batch",   BatchSize: settings.CommitBatchSize, IntervalMs: settings.CommitIntervalMs),
         };
 
         int t4Num = 1;
@@ -210,6 +250,7 @@ public class TestDefinition
                         Duration = duration,
                         Runs = consumerRuns,
                         CommitBatchSize = mode.BatchSize,
+                        CommitIntervalMs = mode.IntervalMs,
                     });
                     t4Num++;
                 }
@@ -263,5 +304,10 @@ public class TestDefinition
     private static string BuildBatchName(SerializationFormat format, PayloadSize size, int window)
     {
         return $"Batch {format} {size} Window-{window}";
+    }
+
+    private static string BuildBatchRealisticName(SerializationFormat format, PayloadSize size, int window)
+    {
+        return $"Batch-Realistic {format} {size} Window-{window}";
     }
 }

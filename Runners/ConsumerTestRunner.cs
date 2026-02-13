@@ -141,7 +141,8 @@ public class ConsumerTestRunner
     ///
     /// Offset commits are manual (EnableAutoCommit = false):
     ///   ManualPerMessage: consumer.Commit(result) after every message.
-    ///   ManualBatch: consumer.Commit() every CommitBatchSize messages.
+    ///   ManualBatch: consumer.Commit() every CommitBatchSize messages OR when
+    ///     CommitIntervalMs has elapsed since the last commit, whichever comes first.
     /// A final consumer.Commit() runs before Close() to flush any stragglers.
     ///
     /// Partition EOF events are skipped (they are informational, not errors).
@@ -169,6 +170,7 @@ public class ConsumerTestRunner
         var lastProgressReport = TimeSpan.Zero;
 
         var sw = Stopwatch.StartNew();
+        var commitTimer = Stopwatch.StartNew();
 
         // Hybrid loop: stop when either message count or duration limit is reached (whichever first)
         while (messagesConsumed < test.MessageCount
@@ -209,11 +211,18 @@ public class ConsumerTestRunner
                 {
                     consumer.Commit(result);
                 }
-                else if (test.CommitStrategy == CommitStrategy.ManualBatch
-                    && test.CommitBatchSize > 0
-                    && messagesConsumed % test.CommitBatchSize == 0)
+                else if (test.CommitStrategy == CommitStrategy.ManualBatch)
                 {
-                    consumer.Commit();
+                    bool countThreshold = test.CommitBatchSize > 0
+                        && messagesConsumed % test.CommitBatchSize == 0;
+                    bool timeThreshold = test.CommitIntervalMs > 0
+                        && commitTimer.ElapsedMilliseconds >= test.CommitIntervalMs;
+
+                    if (countThreshold || timeThreshold)
+                    {
+                        consumer.Commit();
+                        commitTimer.Restart();
+                    }
                 }
 
                 // Report progress approximately every second for live UI updates

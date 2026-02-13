@@ -34,11 +34,13 @@ public class TestSettings
     public int? DurationMinutes { get; set; }
     public int ProducerRuns { get; set; } = 3;
     public int ConsumerRuns { get; set; } = 5;
-    public int BatchTimeoutSeconds { get; set; } = 5;
+    public int BatchTimeoutMs { get; set; } = 500;
     public string TopicPrefix { get; set; } = "test-";
     public string AvroSmallSpecificTopic { get; set; } = "test-avro-small-specificrecord";
     public string AvroLargeSpecificTopic { get; set; } = "test-avro-large-specificrecord";
     public string JsonSmallTopic { get; set; } = "test-json-small";
     public string JsonLargeTopic { get; set; } = "test-json-large";
     public int CommitBatchSize { get; set; } = 100;
+    public int CommitIntervalMs { get; set; } = 500;
+    public int InterMessageDelayMs { get; set; } = 100;
 }
