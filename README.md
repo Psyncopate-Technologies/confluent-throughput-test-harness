@@ -1,10 +1,10 @@
 # Confluent Kafka Throughput Test Harness
 
-A .NET 10 console application that benchmarks **Avro vs JSON** serialization throughput against a Confluent Cloud Kafka cluster. The harness includes three scenario-based producer test suites -- **Fire-and-Forget** (T1.x), **Request-Response** (T2.x), and **Batch Processing** (T3.x) -- plus consumer tests (T4.x) with manual offset commit strategies. All producer tests use `acks=all` + `enable.idempotence=true`. Metrics include messages/sec, MB/sec, average latency, peak CPU, and peak memory usage.
+A .NET 10 console application that benchmarks **Avro vs JSON** serialization throughput against a Confluent Cloud Kafka cluster. The harness includes four scenario-based producer test suites -- **Fire-and-Forget** (T1.x), **Request-Response** (T2.x), **Batch Processing** (T3.x), and **Business-Realistic Batch** (T3B.x) -- plus consumer tests (T4.x) with manual offset commit strategies. All producer tests use `acks=all` + `enable.idempotence=true`. Metrics include messages/sec, MB/sec, average latency, peak CPU, and peak memory usage.
 
 ## Test Matrix
 
-The harness runs **28 tests**: 4 fire-and-forget producer tests (T1.1--T1.4), 4 request-response producer tests (T2.1--T2.4), 12 batch processing producer tests (T3.1--T3.12), and 8 consumer tests (T4.1--T4.8).
+The harness runs **40 tests**: 4 fire-and-forget producer tests (T1.1--T1.4), 4 request-response producer tests (T2.1--T2.4), 12 batch processing producer tests (T3.1--T3.12), 12 business-realistic batch producer tests (T3B.1--T3B.12), and 8 consumer tests (T4.1--T4.8).
 
 Each test run uses **hybrid termination**: it stops when **either** the message count limit (default 100,000) or the time limit (default 1 minute) is reached -- whichever comes first. Each test runs 3 times by default.
 
@@ -32,7 +32,7 @@ Synchronous pattern using `ProduceAsync` + await each message individually. Mode
 
 ### Batch Processing Producer Tests (T3.x)
 
-Concurrent pattern using `ProduceAsync` + `Task.WhenAll` concurrency windows. Fire N `ProduceAsync` calls concurrently, await all, check each `DeliveryResult` for errors. Window sizes 1, 10, and 100 simulate different levels of concurrent in-flight messages, from single sequential messages to 100 concurrent background tasks. Batch collection uses a time-bound deadline (`BatchTimeoutSeconds`, default 5s) to prevent indefinite waiting when fewer events arrive than the window size.
+Concurrent pattern using `ProduceAsync` + `Task.WhenAll` concurrency windows. Fire N `ProduceAsync` calls concurrently, await all, check each `DeliveryResult` for errors. Window sizes 1, 10, and 100 simulate different levels of concurrent in-flight messages, from single sequential messages to 100 concurrent background tasks. Messages are produced in a tight loop with no inter-message delay, so the concurrency window fills almost instantly. Batch collection uses a time-bound deadline (`BatchTimeoutMs`, default 500ms) to prevent indefinite waiting when fewer events arrive than the window size.
 
 | ID | Format | Payload | Window | Name |
 |----|--------|---------|--------|------|
@@ -49,12 +49,38 @@ Concurrent pattern using `ProduceAsync` + `Task.WhenAll` concurrency windows. Fi
 | **T3.11** | JSON | Large | 10 | Batch JSON Large Window-10 |
 | **T3.12** | JSON | Large | 100 | Batch JSON Large Window-100 |
 
+### Business-Realistic Batch Producer Tests (T3B.x)
+
+Same concurrency window pattern as T3.x, but with a configurable inter-message delay (`InterMessageDelayMs`, default 100ms) inserted between each `ProduceAsync` call. This simulates real-world applications where messages arrive at varying rates rather than in a tight loop. The delay allows the batch deadline to expire before the concurrency window fills, producing **partial batches** -- a behavior that tight-loop tests never exercise.
+
+**How partial batches are triggered** (with `InterMessageDelayMs = 100` and `BatchTimeoutMs = 500`):
+- **Window 1:** 1 × 100ms = 100ms → window fills before deadline (no partial batch)
+- **Window 10:** 10 × 100ms = 1s > 500ms → **deadline fires at ~5 messages** (partial batch)
+- **Window 100:** 100 × 100ms = 10s > 500ms → **deadline fires at ~5 messages** (partial batch)
+
+Users can tune `InterMessageDelayMs` higher to trigger partial batches on smaller windows, or lower for faster arrival rates.
+
+| ID | Format | Payload | Window | Name |
+|----|--------|---------|--------|------|
+| **T3B.1** | Avro | Small | 1 | Batch-Realistic Avro Small Window-1 |
+| **T3B.2** | Avro | Small | 10 | Batch-Realistic Avro Small Window-10 |
+| **T3B.3** | Avro | Small | 100 | Batch-Realistic Avro Small Window-100 |
+| **T3B.4** | Avro | Large | 1 | Batch-Realistic Avro Large Window-1 |
+| **T3B.5** | Avro | Large | 10 | Batch-Realistic Avro Large Window-10 |
+| **T3B.6** | Avro | Large | 100 | Batch-Realistic Avro Large Window-100 |
+| **T3B.7** | JSON | Small | 1 | Batch-Realistic JSON Small Window-1 |
+| **T3B.8** | JSON | Small | 10 | Batch-Realistic JSON Small Window-10 |
+| **T3B.9** | JSON | Small | 100 | Batch-Realistic JSON Small Window-100 |
+| **T3B.10** | JSON | Large | 1 | Batch-Realistic JSON Large Window-1 |
+| **T3B.11** | JSON | Large | 10 | Batch-Realistic JSON Large Window-10 |
+| **T3B.12** | JSON | Large | 100 | Batch-Realistic JSON Large Window-100 |
+
 ### Consumer Tests (T4.x)
 
 Consumer tests read from the topics populated by the producer tests. Each consumer run uses a unique consumer group ID (`throughput-test-{TestId}-run-{N}-{guid}`) to ensure it reads from offset 0. All consumer tests use manual offset commit (`EnableAutoCommit = false`) with two strategies:
 
 - **ManualPerMessage** -- `consumer.Commit(result)` after every message. Strictest guarantee: no message is marked committed until processed.
-- **ManualBatch** -- `consumer.Commit()` every N messages (default 100, configurable via `CommitBatchSize`). Throughput-friendly batch commit that reduces broker round-trips.
+- **ManualBatch** -- `consumer.Commit()` every N messages (default 100, configurable via `CommitBatchSize`) or when `CommitIntervalMs` (default 500ms) has elapsed since the last commit, whichever comes first. Throughput-friendly batch commit that reduces broker round-trips.
 
 A final `consumer.Commit()` runs before `consumer.Close()` to flush any remaining uncommitted offsets.
 
@@ -282,8 +308,10 @@ Create `appsettings.Development.json` in the project root:
 | `Test` | `DurationMinutes` | `1` | Max minutes per test run (hybrid mode); set to `null` for count-only mode |
 | `Test` | `ProducerRuns` | `3` | Number of runs per producer test |
 | `Test` | `ConsumerRuns` | `3` | Number of runs per consumer test |
-| `Test` | `BatchTimeoutSeconds` | `5` | Time-bound deadline (seconds) for batch event collection in T3.x Task.WhenAll loop |
+| `Test` | `BatchTimeoutMs` | `500` | Time-bound deadline (milliseconds) for batch event collection in T3.x/T3B.x Task.WhenAll loop |
 | `Test` | `CommitBatchSize` | `100` | Number of messages between offset commits in ManualBatch consumer tests (T4.5--T4.8) |
+| `Test` | `CommitIntervalMs` | `500` | Time-based commit interval (milliseconds) for ManualBatch consumer tests (T4.5--T4.8) |
+| `Test` | `InterMessageDelayMs` | `100` | Delay (milliseconds) between ProduceAsync calls in T3B.x business-realistic batch tests |
 | `Test` | `AvroSmallSpecificTopic` | `test-avro-small-specificrecord` | Topic for Avro small SpecificRecord (producer + consumer) |
 | `Test` | `AvroLargeSpecificTopic` | `test-avro-large-specificrecord` | Topic for Avro large SpecificRecord (producer + consumer) |
 | `Test` | `JsonSmallTopic` | `test-json-small` | Topic for small JSON payloads |
@@ -301,7 +329,7 @@ dotnet build
 
 | Flag | Description |
 |------|-------------|
-| `--producer-only` | Run only producer tests (T1.x--T3.x) |
+| `--producer-only` | Run only producer tests (T1.x--T3B.x) |
 | `--consumer-only` | Run only consumer tests (T4.1--T4.8) |
 | `--test <ID>` | Run a single test by ID (e.g., `T1.1`, `T4.3`) |
 | `--test <start>-<end>` | Run a range of tests (e.g., `T3.1-T3.12`) |
@@ -314,10 +342,10 @@ dotnet build
 ```bash
 # ── Hybrid Mode (default: 100K msgs or 1 min, whichever first) ────
 
-# Run all 28 tests (T1.x fire-and-forget, T2.x request-response, T3.x batch, T4.x consumers)
+# Run all 40 tests (T1.x fire-and-forget, T2.x request-response, T3.x batch, T3B.x realistic, T4.x consumers)
 dotnet run
 
-# Run only producer tests (T1.x + T2.x + T3.x)
+# Run only producer tests (T1.x + T2.x + T3.x + T3B.x)
 dotnet run -- --producer-only
 
 # Run only the 8 consumer tests (topics must already contain messages)
@@ -329,8 +357,11 @@ dotnet run -- --test T1.1
 # Run a single request-response test
 dotnet run -- --test T2.1
 
-# Run all batch processing tests
+# Run all tight-loop batch processing tests
 dotnet run -- --test T3.1-T3.12
+
+# Run all business-realistic batch tests
+dotnet run -- --test T3B.1-T3B.12
 
 # Run specific tests by comma-separated list
 dotnet run -- --test T1.1,T2.1,T3.1
@@ -345,7 +376,7 @@ dotnet run -- --producer-only --duration 15
 # To disable the time limit and use only message count,
 # set "DurationMinutes": null in appsettings.json, then:
 
-# Run all 28 tests with 100K messages per run (no time limit)
+# Run all 40 tests with 100K messages per run (no time limit)
 dotnet run
 
 # ── Help ───────────────────────────────────────────────────────────
@@ -359,13 +390,14 @@ dotnet run -- --help
 1. The application loads configuration from `appsettings.json`, `appsettings.Development.json`, and environment variables.
 2. Both Avro schemas are parsed from the `Schemas/` directory. Custom logical types (`varchar`, `char`) are registered to handle the freight schema.
 3. CLI arguments are parsed to determine which tests to run and whether to override the duration.
-4. The full 28-test matrix is generated from `TestDefinition.GetAll()`, then filtered by CLI flags (`--test`, `--producer-only`, `--consumer-only`).
+4. The full 40-test matrix is generated from `TestDefinition.GetAll()`, then filtered by CLI flags (`--test`, `--producer-only`, `--consumer-only`).
 5. **Fire-and-Forget producer tests (T1.1--T1.4)** use `Produce` (fire-and-forget) with a delivery handler callback + `acks=all` + `enable.idempotence=true`.
 6. **Request-Response producer tests (T2.1--T2.4)** use `ProduceAsync` + await each message individually + `acks=all` + `enable.idempotence=true`.
-7. **Batch Processing producer tests (T3.1--T3.12)** fire N `ProduceAsync` calls concurrently via `Task.WhenAll` (window sizes 1, 10, 100) + `acks=all` + `enable.idempotence=true`. Batch collection uses a time-bound deadline to prevent indefinite waiting.
-8. **Consumer tests (T4.1--T4.8)** run last, each consuming messages from their configured topics with the same hybrid termination logic. Each run uses a unique consumer group (`throughput-test-{TestId}-run-{N}-{guid}`) to read from offset 0. All consumer tests use manual offset commit (`EnableAutoCommit = false`): T4.1--T4.4 commit after every message (ManualPerMessage), T4.5--T4.8 commit every N messages (ManualBatch).
-9. A formatted results table is printed to the console with per-run and averaged metrics, including API, Commit Strategy, Concurrency Window, and Record Type columns.
-10. Results are exported to a timestamped CSV file and an interactive HTML report in `bin/Debug/net10.0/results/`.
+7. **Batch Processing producer tests (T3.1--T3.12)** fire N `ProduceAsync` calls concurrently via `Task.WhenAll` (window sizes 1, 10, 100) + `acks=all` + `enable.idempotence=true`. Messages are produced in a tight loop. Batch collection uses a time-bound deadline to prevent indefinite waiting.
+8. **Business-Realistic Batch producer tests (T3B.1--T3B.12)** use the same concurrency window pattern as T3.x, but insert a configurable inter-message delay (`InterMessageDelayMs`, default 100ms) between each `ProduceAsync` call. This simulates realistic message arrival rates and triggers partial batch flushes when the deadline expires before the window fills.
+9. **Consumer tests (T4.1--T4.8)** run last, each consuming messages from their configured topics with the same hybrid termination logic. Each run uses a unique consumer group (`throughput-test-{TestId}-run-{N}-{guid}`) to read from offset 0. All consumer tests use manual offset commit (`EnableAutoCommit = false`): T4.1--T4.4 commit after every message (ManualPerMessage), T4.5--T4.8 commit every N messages or on a time interval (ManualBatch).
+10. A formatted results table is printed to the console with per-run and averaged metrics, including API, Commit Strategy, Concurrency Window, and Record Type columns.
+11. Results are exported to a timestamped CSV file and an interactive HTML report in `bin/Debug/net10.0/results/`.
 
 ### Test Output
 
@@ -384,7 +416,7 @@ All output files are written to the `results/` directory under the build output 
 The HTML report includes:
 - **Summary table** with all metrics for every test, including API, Commit Strategy, Concurrency Window, and Record Type
 - **Bar charts** comparing msgs/sec and MB/sec across all tests
-- **Time-series line charts** showing instantaneous throughput over time (when a time limit is configured), grouped by fire-and-forget (T1.x), request-response (T2.x), batch (T3.x), and consumer (T4.x) tests
+- **Time-series line charts** showing instantaneous throughput over time (when a time limit is configured), grouped by fire-and-forget (T1.x), request-response (T2.x), batch (T3.x), business-realistic batch (T3B.x), and consumer (T4.x) tests
 - Color-coded by test for easy visual comparison
 
 ## Project Structure
@@ -422,7 +454,7 @@ confluent-throughput-test-harness/
 │   ├── JsonSmallDataFactory.cs                 # POCO builder (27 fields)
 │   └── JsonLargeDataFactory.cs                 # POCO builder (106 fields)
 ├── Tests/
-│   ├── TestDefinition.cs                       # Enums, 28-test matrix generation (T1.x–T4.x)
+│   ├── TestDefinition.cs                       # Enums, 40-test matrix generation (T1.x–T4.x)
 │   ├── TestResult.cs                           # Per-run metrics (incl. API, Commit, Window, RecordType)
 │   ├── TestSuite.cs                            # Aggregation and averages
 │   └── ThroughputSample.cs                     # Time-series throughput snapshot
@@ -443,13 +475,14 @@ confluent-throughput-test-harness/
 - **All producers use `acks=all` + `enable.idempotence=true`** -- guaranteed delivery with exactly-once semantics across all three producer scenarios. No more drag-race config with `acks=Leader`.
 - **SpecificRecord only for Avro** -- GenericRecord removed (negligible performance difference in benchmarks). The freight schema uses custom logical types (`varchar`, `char`) that are incompatible with `avrogen` code generation. The `ISpecificRecord` implementations (`FreightSmallSpecific`, `FreightLargeSpecific`) were generated by a .NET Source Generator.
 - **POCO classes for JSON** -- The `Confluent.SchemaRegistry.Serdes.Json` serializer works with plain C# classes annotated with `System.Text.Json` attributes.
-- **Time-bound batch collection** -- The T3.x batch loop uses a `BatchTimeoutSeconds` deadline (default 5s) when collecting events for the `Task.WhenAll` window. This prevents indefinite waiting when fewer events arrive than the window size. In the test harness messages generate instantly so the timeout won't fire, but the code demonstrates the production pattern.
+- **Time-bound batch collection** -- The T3.x and T3B.x batch loops use a `BatchTimeoutMs` deadline (default 500ms) when collecting events for the `Task.WhenAll` window. This prevents indefinite waiting when fewer events arrive than the window size. In tight-loop T3.x tests the window fills before the deadline, but in T3B.x tests the inter-message delay causes the deadline to fire first, producing partial batches.
+- **Business-realistic inter-message delay** -- T3B.x tests insert a configurable `InterMessageDelayMs` (default 100ms) between each `ProduceAsync` call to simulate real-world message arrival rates. This enables side-by-side comparison of tight-loop (T3.x) vs realistic (T3B.x) throughput and demonstrates partial batch behavior when the deadline expires before the concurrency window fills.
 - **Concurrency window sizes 1, 10, and 100** -- Window-1 provides a sequential baseline within the batch pattern for direct comparison against higher concurrency levels. Window-50 was removed as it added little insight between 10 and 100.
 - **Separate producer topics per record type** -- Avro SpecificRecord tests write to dedicated topics (e.g., `test-avro-small-specificrecord`) to avoid cross-contamination of benchmark data.
 - **Pre-registered schemas** -- All schemas are registered ahead of time. Serializers use `AutoRegisterSchemas = false` and `UseLatestVersion = true` to look up schemas by subject at runtime.
 - **Integer keys** -- All messages use sequential integer keys (1, 2, 3, ...) serialized with `AvroSerializer<int>` for Avro topics or `JsonSerializer<T>` / default `Serializers.Int32` for JSON topics.
 - **Per-message uniqueness** -- Each message gets a unique `__test_seq` (sequence number) and `__test_ts` (ISO timestamp) stamped into the value before every produce call. This proves the serializer is doing real work on every message. One record template is created and mutated in-place to avoid object construction overhead.
 - **Hybrid termination** -- Each test run stops when either the message count limit (default 100K) or the time limit (default 1 minute) is reached, whichever comes first. Set `DurationMinutes` to `null` for count-only mode.
-- **Manual offset commit** -- All consumer tests use `EnableAutoCommit = false` to simulate real-world patterns where commit happens only after downstream processing confirms success. Two strategies are tested: ManualPerMessage (`consumer.Commit(result)` after every message) provides the strictest guarantee, while ManualBatch (`consumer.Commit()` every N messages) reduces broker round-trips for higher throughput. The batch size is configurable via `CommitBatchSize` (default 100).
+- **Manual offset commit** -- All consumer tests use `EnableAutoCommit = false` to simulate real-world patterns where commit happens only after downstream processing confirms success. Two strategies are tested: ManualPerMessage (`consumer.Commit(result)` after every message) provides the strictest guarantee, while ManualBatch (`consumer.Commit()` every N messages or when `CommitIntervalMs` elapses, whichever comes first) reduces broker round-trips for higher throughput. The batch size is configurable via `CommitBatchSize` (default 100) and the time interval via `CommitIntervalMs` (default 500ms).
 - **Unique consumer group per run** -- Each consumer run creates a group ID like `throughput-test-T4.1-run-1-<guid>` so every run reads the full topic from the beginning. Note: The API key used must have permissions to dynamically register new consumer groups in Confluent Cloud.
 - **Interactive HTML report** -- Every test run generates a self-contained HTML file using Chart.js (loaded from CDN). Bar charts compare throughput across all tests at a glance. When a time limit is configured, time-series line charts plot instantaneous throughput over the full run, making it easy to spot warm-up periods, throttling, or throughput degradation.

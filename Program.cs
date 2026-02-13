@@ -95,11 +95,12 @@ var smallSchema = (RecordSchema)Schema.Parse(smallSchemaJson);
 var largeSchema = (RecordSchema)Schema.Parse(largeSchemaJson);
 
 // ── Build Test Definitions ───────────────────────────────────────────
-// Generate the 24-test scenario-based matrix:
-//   T1.1-T1.4   fire-and-forget producers (Produce + delivery handler)
-//   T2.1-T2.4   request-response producers (ProduceAsync + await each)
-//   T3.1-T3.12  batch processing producers (ProduceAsync + Task.WhenAll windows 1/10/100)
-//   T4.1-T4.4   consumers
+// Generate the 40-test scenario-based matrix:
+//   T1.1-T1.4    fire-and-forget producers (Produce + delivery handler)
+//   T2.1-T2.4    request-response producers (ProduceAsync + await each)
+//   T3.1-T3.12   batch processing producers (ProduceAsync + Task.WhenAll windows 1/10/100)
+//   T3B.1-T3B.12 business-realistic batch producers (same + inter-message delay)
+//   T4.1-T4.8    consumers (ManualPerMessage + ManualBatch)
 // then filter based on CLI arguments.
 var allTests = TestDefinition.GetAll(testSettings);
 var testsToRun = allTests.AsEnumerable();
